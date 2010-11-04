@@ -2561,28 +2561,6 @@ public class TransactionalBidiTreeMap<K,V> extends AbstractMap<K,V> implements T
         }
         
         /*
-         * Special test for checking new range restrictions
-         *
-         * start >= valid range >= end
-         * nulls are true
-         *
-         */
-        public boolean InRangeInclusive(Object obj, int type){
-            boolean r;
-            if (obj == null)
-                return true;
-            if (type == KEY)
-                r =  (fromKey == null || compare(Node.NO_CHANGE, obj, Node.NO_CHANGE, fromKey, KEY) >= 0) &&
-                       (toKey == null || compare(Node.NO_CHANGE, obj, Node.NO_CHANGE, toKey, KEY)   <=  0) &&
-            		   (filters[KEY] == null ? true : filters[KEY].isValid(obj));
-            else
-                r =  (fromValue == null || compare(Node.NO_CHANGE, obj, Node.NO_CHANGE, fromValue, VALUE) >= 0) &&
-                       (toValue == null || compare(Node.NO_CHANGE, obj, Node.NO_CHANGE, toValue, VALUE) <= 0) &&
-            		   (filters[VALUE] == null ? true : filters[VALUE].isValid(obj));
-            return r;
-        }
-        
-        /*
          * Check if a key is in range and the equivalent value is in range
          * Because it needs to check the equivalent value, the key must also
          * exist in the underlying representation
@@ -2631,9 +2609,6 @@ public class TransactionalBidiTreeMap<K,V> extends AbstractMap<K,V> implements T
             return inRange(obj, checktype);
         }
         
-        public boolean inRangeDouble(Object obj, int checktype) {
-            return (checktype == KEY) ? inRangeKeyAndValue(obj) : inRangeValueAndKey(obj);
-        }
         /*
          * Check both parts of a key value pair are in range
          */
@@ -3284,7 +3259,7 @@ public class TransactionalBidiTreeMap<K,V> extends AbstractMap<K,V> implements T
     }
 
     // final for performance
-    protected static final class Node<K,V> implements Map.Entry<K,V>, java.io.Serializable {
+    public static final class Node<K,V> implements Map.Entry<K,V>, java.io.Serializable {
 
         private static final long serialVersionUID = -5178097310251692266L;
         
