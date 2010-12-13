@@ -259,7 +259,7 @@ public class TransactionalBidiTreeMap<K,V> extends AbstractMap<K,V> implements T
         return auto_commit;
     }
 
-    public interface CommitNotifiable extends Serializable
+    public interface TransactionNotifiable extends Serializable
     {
         void addedToMap(Object key, Object value);
 
@@ -268,16 +268,30 @@ public class TransactionalBidiTreeMap<K,V> extends AbstractMap<K,V> implements T
 
     private transient Set commit_notifiers = null;
 
-    public void setCommitNotifier(CommitNotifiable commit_notifier)
+    private transient Set rollback_notifiers = null;
+
+    public void setCommitNotifier(TransactionNotifiable commit_notifier)
     {
         if (commit_notifiers == null)
             commit_notifiers = SynchronizedSet.decorate(new HashSet());
         commit_notifiers.add(commit_notifier);
     }
 
-    public void removeCommitNotifier(CommitNotifiable commit_notifier)
+    public void removeCommitNotifier(TransactionNotifiable commit_notifier)
     {
         commit_notifiers.remove(commit_notifier);
+    }
+
+    public void setRollbackNotifier(TransactionNotifiable rollback_notifier)
+    {
+        if (rollback_notifiers == null)
+            rollback_notifiers = SynchronizedSet.decorate(new HashSet());
+        rollback_notifiers.add(rollback_notifier);
+    }
+
+    public void removeRollbackNotifier(TransactionNotifiable rollback_notifier)
+    {
+        rollback_notifiers.remove(rollback_notifier);
     }
 
     /**
@@ -304,13 +318,37 @@ public class TransactionalBidiTreeMap<K,V> extends AbstractMap<K,V> implements T
 
         ArrayList<Entry<K,V>> list = new ArrayList<Entry<K,V>>(allEntrySet());
         for (Iterator<Entry<K,V>> i = list.iterator(); i.hasNext(); ) {
-            Node<K,V> node = (Node<K,V>)i.next();
+            final Node<K,V> node = (Node<K,V>)i.next();
 
-            if (node.is(Node.ADDED, id))
+            if (node.is(Node.ADDED, id)) {
                 doRedBlackDelete(node);
+                if (rollback_notifiers != null)
+                {
+                    SyncUtils.synchronizeRead(rollback_notifiers, new Callback() {
+                        @Override
+                        protected void doAction()
+                        {
+                            for (Iterator i2 = rollback_notifiers.iterator(); i2.hasNext(); )
+                                ((TransactionNotifiable)i2.next()).removedFromMap(node.getKey(), node.getValue());
+                        }
+                    });
+                }
+            }
 
-            if (node.is(Node.DELETED, id))
+            if (node.is(Node.DELETED, id)) {
                 node.setStatus(Node.NO_CHANGE, null);
+                if (rollback_notifiers != null)
+                {
+                    SyncUtils.synchronizeRead(rollback_notifiers, new Callback() {
+                        @Override
+                        protected void doAction()
+                        {
+                            for (Iterator i2 = rollback_notifiers.iterator(); i2.hasNext(); )
+                                ((TransactionNotifiable)i2.next()).addedToMap(node.getKey(), node.getValue());
+                        }
+                    });
+                }
+            }
         }
     }
     
@@ -336,7 +374,7 @@ public class TransactionalBidiTreeMap<K,V> extends AbstractMap<K,V> implements T
                         protected void doAction()
                         {
                             for (Iterator i2 = commit_notifiers.iterator(); i2.hasNext(); )
-                                ((CommitNotifiable)i2.next()).removedFromMap(node.getKey(), node.getValue());
+                                ((TransactionNotifiable)i2.next()).removedFromMap(node.getKey(), node.getValue());
                         }
                     });
                 }
@@ -352,7 +390,7 @@ public class TransactionalBidiTreeMap<K,V> extends AbstractMap<K,V> implements T
                         protected void doAction()
                         {
                             for (Iterator i2 = commit_notifiers.iterator(); i2.hasNext(); )
-                                ((CommitNotifiable)i2.next()).addedToMap(node.getKey(), node.getValue());
+                                ((TransactionNotifiable)i2.next()).addedToMap(node.getKey(), node.getValue());
                         }
                     });
                 }

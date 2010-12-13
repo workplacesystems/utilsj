@@ -96,4 +96,20 @@ public class CollectionUtilities
         
         throw new IllegalArgumentException("Unknown collection type " + source.getClass().getCanonicalName());
     }
+    
+    public static <T> List<T> sub(T[] source, int first)
+    {
+        return sub(source, first, source.length-1);
+    }
+    
+    public static <T> List<T> sub(T[] source, int first, int last)
+    {
+        if (first < 0 || last < 0 || first >= source.length || last >= source.length)
+            throw new ArrayIndexOutOfBoundsException();
+        List<T> result = new ArrayList<T>();
+
+        for (int i=first; i<=last; i++)
+            result.add(source[i]);
+        return result;
+    }
 }
