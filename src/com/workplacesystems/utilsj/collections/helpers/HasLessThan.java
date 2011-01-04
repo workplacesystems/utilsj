@@ -38,8 +38,10 @@ public class HasLessThan<T> extends IterativeCallback<T, HasLessThan<T>>
     @Override
     public HasLessThan<T> iterate(final FilterableCollection<? extends T> c)
     {
-        if (total <= 0)
+        if (total <= 0) {
+            checkUsed();
             return this;
+        }
 
         super.iterate(c);
 
