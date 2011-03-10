@@ -17,57 +17,38 @@
 package com.workplacesystems.utilsj.collections.helpers;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 import com.workplacesystems.utilsj.collections.Filter;
 
 /**
- * Combines many individual filters into one. Filters out any item that 
- * returns false for any of the filters, ie. a logial and of all filters.
- * This has the same operating mode as the java shortcut and operator 
- * '&amp;&amp;'.
+ * Logical 'and' of a sequence of filters.  Short-circuit boolean evaluation is used as for Java '&amp;&amp;' operation.
+ * That is, first fail will return false overall without evaluating the rest of the filters.
+ * <p>
+ * Boundary case: the 'and' of no filters is true (consistent with normal predicate logic rules for quantifying over the empty set)
  *
  * @author henningt
  */
 public final class AndFilter<E> implements Filter<E> {
     
-    /** List of and conditions. */
-    private final List<Filter<? super E>> conditions;
+    /** List of 'and' conditions to short-circuit evaluate */
+    private final List<Filter<? super E>> conditions = new ArrayList();
 
-    /**
-     * Constructor that takes a minimum of two filters.
-     * Addtional filters are specified as a variable argument.
-     * @param conditions the filters to use
-     */
-    public AndFilter(final Filter<? super E> f1, final Filter<? super E> f2, 
-            final Filter<? super E>...optional_conditions) 
+    public AndFilter(final Filter<? super E>... filters)
     {
-        List<Filter<? super E>> conditions = new ArrayList<Filter<? super E>>();
-        
-        conditions.add(f1);
-        conditions.add(f2);
-        conditions.addAll(Arrays.asList(optional_conditions));
-        this.conditions = conditions;
+        for (Filter filter : filters)
+            conditions.add(filter);
     }
     
-    /**
-     * Constructor that takes a list of filters.
-     * @param conditions the filters to use
-     */
-    public AndFilter(final List<Filter<? super E>> conditions) 
+    public AndFilter(final List<Filter<? super E>> filters) 
     {
-        this.conditions = new ArrayList<Filter<? super E>>(conditions);
+        conditions.addAll(filters);
     }
 
-    /**
-     * Part of the {@link Filter} interface.
-     * @param obj the object to filter
-     */
     public boolean isValid(E obj) 
     {
-        for(Filter<? super E> condition : conditions)
-            if(!condition.isValid(obj)) return false;
+        for (Filter<? super E> condition : conditions)
+            if (!condition.isValid(obj)) return false;
         return true;
     }
 }

@@ -17,47 +17,38 @@
 package com.workplacesystems.utilsj.collections.helpers;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 import com.workplacesystems.utilsj.collections.Filter;
 
 /**
- * Combines many individual filters into one. Filters out any item that 
- * returns true for any of the filters, ie. a logial and of all filters.
- * This has the same operating mode as the java shortcut and operator ||.
+ * Logical 'or' of a sequence of filters.  Short-circuit boolean evaluation is used as for Java '||' operation.
+ * That is, first success will return true overall without evaluating the rest of the filters.
+ * <p>
+ * Boundary case: the 'or' of no filters is false (consistent with normal predicate logic rules for quantifying over the empty set)
  *
  * @author henningt
  */
 public class OrFilter<E> implements Filter<E>
 {
-    /** List of and conditions. */
-    private final List<Filter<? super E>> conditions;
+    /** List of 'or' conditions to short-circuit evaluate */
+    private final List<Filter<? super E>> conditions = new ArrayList();
 
-    /**
-     * Constructor that takes a minimum of two filters.
-     * Addtional filters are specified as a variable argument.
-     * @param conditions the filters to use
-     */
-    public OrFilter(final Filter<? super E> f1, final Filter<? super E> f2, 
-            final Filter<? super E>...optional_conditions) 
+    public OrFilter(final Filter<? super E>... filters)
     {
-        List<Filter<? super E>> conditions = new ArrayList<Filter<? super E>>();
-
-        conditions.add(f1);
-        conditions.add(f2);
-        conditions.addAll(Arrays.asList(optional_conditions));
-        this.conditions = conditions;
+        for (Filter<? super E> filter : filters)
+            conditions.add(filter);
     }
 
-    /**
-     * Part of the {@link Filter} interface.
-     * @param obj the object to filter
-     */
+    public OrFilter(final List<Filter<? super E>> filters) 
+    {
+        conditions.addAll(filters);
+    }
+
     public boolean isValid(E obj)
     {
-        for(Filter<? super E> condition : conditions)
-            if(condition.isValid(obj)) return true;
+        for (Filter<? super E> condition : conditions)
+            if (condition.isValid(obj)) return true;
         return false;
     }
 }

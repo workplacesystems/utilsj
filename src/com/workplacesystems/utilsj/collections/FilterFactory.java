@@ -16,6 +16,9 @@
 
 package com.workplacesystems.utilsj.collections;
 
+import java.util.HashSet;
+import java.util.Set;
+
 public final class FilterFactory
 {
     private static final Filter<?> ACCEPT_ALL = new Filter<Object>()
@@ -43,6 +46,16 @@ public final class FilterFactory
         }
     };
 
+    private static final Filter<?> DISTINCT = new Filter<Object>()
+    { 
+        Set seen = new HashSet();
+
+        public boolean isValid(Object o) 
+        { 
+            return seen.add(o);
+        }
+    };
+
     public static <T> Filter<T> getAcceptAll()
     {
         return (Filter<T>)ACCEPT_ALL;
@@ -67,8 +80,13 @@ public final class FilterFactory
     {
         return (Filter<T>)REJECT_NULL;
     }
-    
+
+    /** Filter which accepts distinct objects during its lifetime.  Any repeats will be rejected */
+    public static <T> Filter<T> getDistinct()
+    {
+        return (Filter<T>)DISTINCT;
+    }
+
     // enforce non-instantiability
     private FilterFactory() {}
-
 }

@@ -18,14 +18,12 @@ package com.workplacesystems.utilsj.collections.helpers;
 
 import com.workplacesystems.utilsj.collections.Filter;
 
-/**
- * Used to invert the behavior of a given filter.
- */
+/** Logical 'not' of a filter */
 public class NotFilter<E> implements Filter<E>
 {
-    Filter<E> filter;
+    Filter<? super E> filter;
     
-    public NotFilter(Filter<E> filter) 
+    public NotFilter(Filter<? super E> filter) 
     {
         this.filter = filter;
     }
