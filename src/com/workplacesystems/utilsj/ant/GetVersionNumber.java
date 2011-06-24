@@ -28,10 +28,12 @@ public class GetVersionNumber extends Task {
 
     private String propertyName;
     private String propertyDescName;
+    private String propertyMvnName;
     private String versionClass;
 
     public void setPropertyName(String propertyName) { this.propertyName = propertyName; }
     public void setPropertyDescName(String propertyDescName) { this.propertyDescName = propertyDescName; }
+    public void setPropertyMvnName(String propertyMvnName) { this.propertyMvnName = propertyMvnName; }
     public void setVersionClass(String versionClass) { this.versionClass = versionClass; }
 
     @Override
@@ -41,10 +43,13 @@ public class GetVersionNumber extends Task {
             log("Retrieving version from: " + versionClass);
             Method m = Class.forName(versionClass).getMethod("getVersion", (Class[])null);
             Method m2 = Class.forName(versionClass).getMethod("getVersionDesc", (Class[])null);
+            Method m3 = Class.forName(versionClass).getMethod("getVersionMvn", (Class[])null);
             String version = (String)m.invoke((Object)null, (Object[])null);
             String versionDesc = (String)m2.invoke((Object)null, (Object[])null);
+            String versionMvn = (String)m3.invoke((Object)null, (Object[])null);
             getProject().setNewProperty(propertyName, version);
             getProject().setNewProperty(propertyDescName, versionDesc);
+            getProject().setNewProperty(propertyMvnName, versionMvn);
             log("Version: " + versionDesc);
         }
         catch (Exception e) {
