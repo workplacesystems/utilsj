@@ -67,9 +67,14 @@ public class ThreadSession
         return get().values.remove(key);
     }
 
+    public final static void clear()
+    {
+        get().values.clear();
+    }
+
     private final static String SEPARATOR = System.getProperty("line.separator");
 
-    final static String dump()
+    public final static String dump()
     {
         String result = "";
 
