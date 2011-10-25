@@ -531,7 +531,7 @@ public class TransactionalBidiTreeMap<K,V> extends AbstractMap<K,V> implements T
                                              thread_id);
 
                     if ((node!=null) && node.getData(KEY).equals(key)) {
-                        if (auto_commit)
+                        if (auto_commit || node.is(Node.ADDED, thread_id))
                             doRedBlackDelete(node);
                         else
                             node.setStatus(Node.DELETED, thread_id);
@@ -2214,7 +2214,7 @@ public class TransactionalBidiTreeMap<K,V> extends AbstractMap<K,V> implements T
                     Node<K,V>      node  = lookupValid(entry.getKey(), KEY, thread_id);
 
                     if ((node!=null) && node.getData(VALUE).equals(value)) {
-                        if (auto_commit)
+                        if (auto_commit || node.is(Node.ADDED, thread_id))
                             doRedBlackDelete(node);
                         else
                             node.setStatus(Node.DELETED, thread_id);
@@ -3111,9 +3111,14 @@ public class TransactionalBidiTreeMap<K,V> extends AbstractMap<K,V> implements T
                  Object key = entry.getKey();
                  if (!TransactionalBidiTreeMap.SubMap.this.restriction.inRangeKeyAndValue(key))
                  return false;
-                 Node<K,V> node = lookupValid(key, KEY, getCurrentThreadId());
+                 final String thread_id = getCurrentThreadId();
+                 Node<K,V> node = lookupValid(key, KEY, thread_id);
                  if (node!=null && valEquals(node.getValue(),entry.getValue())){
-                     TransactionalBidiTreeMap.this.doRedBlackDelete(node);
+                     if (auto_commit || node.is(Node.ADDED, thread_id))
+                         doRedBlackDelete(node);
+                     else
+                         node.setStatus(Node.DELETED, thread_id);
+                     
                      return true;
                  }
                  return false;
@@ -3252,13 +3257,14 @@ public class TransactionalBidiTreeMap<K,V> extends AbstractMap<K,V> implements T
                 throw new ConcurrentModificationException();
             }
 
-            if (auto_commit)
+            String thread_id = getCurrentThreadId();
+            if (auto_commit || lastReturnedNode.is(Node.ADDED, thread_id))
             {
                 doRedBlackDelete(lastReturnedNode);
                 expectedModifications++;
             }
             else
-                lastReturnedNode.setStatus(Node.DELETED, getCurrentThreadId());
+                lastReturnedNode.setStatus(Node.DELETED, thread_id);
 
             lastReturnedNode = null;
         }
