@@ -70,7 +70,7 @@ public class SynchronizedMap<K,V> implements Map<K,V>, SynchronizedDecorator {
         }
 
         this.map = map;
-        this.lock = lock;
+        this.lock = SyncUtils.createMutex(lock);
     }
 
     

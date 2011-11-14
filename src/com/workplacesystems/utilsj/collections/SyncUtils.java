@@ -18,6 +18,7 @@ package com.workplacesystems.utilsj.collections;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -68,6 +69,11 @@ public abstract class SyncUtils
         sync_utils_instance = local_sync_util;
     }
 
+    enum LockType {
+        READ,
+        WRITE;
+    }
+
     /** Creates a new instance of SyncUtils */
     SyncUtils() {}
     
@@ -97,149 +103,312 @@ public abstract class SyncUtils
         return obj;
     }
 
-    public static abstract class SyncList
+    public static SyncCondition getSyncCondition(final Object obj)
+    {
+        return sync_utils_instance.getSyncConditionImpl(getObjectToLock(obj));
+    }
+
+    public static abstract class SyncWrapper
     {
         private final List<Object> objects_to_lock = new ArrayList<Object>();
+        private final HashMap<Object, Callback> release_callbacks = new HashMap<Object, Callback>();
         private final List<Object> locked = new ArrayList<Object>();
 
-        SyncList() {}
+        SyncWrapper() {}
 
-        public void addObjectToLock(Object obj)
+        public final void addObjectToLock(Object obj)
+        {
+            addObjectToLock(obj, null);
+        }
+
+        public final void addObjectToLock(Object obj, Callback<?> release_callback)
         {
             Object mutex = getObjectToLock(obj);
             if (!objects_to_lock.contains(mutex))
-                objects_to_lock.add(mutex);
-        }
-
-        void lockAll()
-        {
-            if (!locked.isEmpty())
-                throw new IllegalStateException("lockAll already called");
-            
-            boolean all_locked = false;
-            while (!all_locked)
             {
-                all_locked = true;
-                
-                for (Object mutex: objects_to_lock)
-                {
-                    if (tryLock(mutex))
-                        locked.add(mutex);
-                    else
-                    {
-                        unlockAll();
-                        all_locked = false;
-                        try
-                        {
-                            Thread.sleep((long)(100L + Math.random() * 400L));
-                        }
-                        catch (InterruptedException e) {}
-                        break;
-                    }
-                }
+                objects_to_lock.add(mutex);
+                if (release_callback != null)
+                    release_callbacks.put(mutex, release_callback);
             }
         }
 
-        abstract boolean tryLock(Object mutex);
-
-        void unlockAll()
+        final Callback<?> getReleaseCallback(Object mutex)
         {
-            UtilsjException ce = null;
-            for (Iterator<Object> i = locked.iterator(); i.hasNext(); )
+            return release_callbacks.get(mutex);
+        }
+
+        final boolean isLegacy()
+        {
+            boolean legacy = false;
+            for (Object mutex : objects_to_lock)
             {
-                Object mutex = i.next();
+                legacy = legacy || isLegacy(mutex);
+                if (legacy)
+                    break;
+            }
+
+            if (legacy)
+            {
+                if (objects_to_lock.size() > 1)
+                    throw new UnsupportedOperationException("Legacy sync lists not supported");
+                else if (objects_to_lock.size() == 1 && release_callbacks.get(objects_to_lock.get(0)) != null)
+                    throw new UnsupportedOperationException("Release callbacks not supported for legacy sync");
+            }
+
+            return legacy;
+        }
+
+        final Object getMutex(int idx)
+        {
+            return objects_to_lock.get(idx);
+        }
+
+        final void lock(LockType lockType)
+        {
+            if (objects_to_lock.size() > 1)
+            {
+                boolean lock_complete = false;
                 try
                 {
-                    unlock(mutex);
-                }
-                // Try best to unlock everything before throwing
-                catch (Exception e)
-                {
-                    UtilsjException _ce = new UtilsjException(e);
-                    if (ce == null)
-                        ce = _ce;
-                }
-                i.remove();
-            }
+                    if (!locked.isEmpty())
+                        throw new IllegalStateException("lock already called");
 
-            if (ce != null)
-                throw ce;
+                    boolean all_locked = false;
+                    while (!all_locked)
+                    {
+                        all_locked = true;
+
+                        for (Object mutex: objects_to_lock)
+                        {
+                            if (tryLock(lockType, mutex))
+                                locked.add(mutex);
+                            else
+                            {
+                                unlock(lockType, false);
+                                all_locked = false;
+                                /*try
+                                {
+                                    Thread.sleep((long)(100L + Math.random() * 400L));
+                                }
+                                catch (InterruptedException e) {}*/
+                                waitForLock(lockType, mutex);
+                                break;
+                            }
+                        }
+                    }
+                    lock_complete = true;
+                }
+                finally
+                {
+                    if (!lock_complete)
+                        unlock(lockType);
+                }
+            }
+            else
+            {
+                if (!objects_to_lock.isEmpty())
+                    lock(lockType, objects_to_lock.get(0));
+            }
         }
 
-        abstract void unlock(Object mutex);
+        final void unlock(LockType lockType)
+        {
+            unlock(lockType, true);
+        }
+
+        final void unlock(LockType lockType, boolean run_release_callback)
+        {
+            if (objects_to_lock.size() > 1)
+            {
+                UtilsjException ce = null;
+                for (Iterator<Object> i = locked.iterator(); i.hasNext(); )
+                {
+                    Object mutex = i.next();
+                    try
+                    {
+                        unlock(lockType, mutex, run_release_callback);
+                    }
+                    // Try best to unlock everything before throwing
+                    catch (Exception e)
+                    {
+                        UtilsjException _ce = new UtilsjException(e);
+                        if (ce == null)
+                            ce = _ce;
+                    }
+                    i.remove();
+                }
+
+                if (ce != null)
+                    throw ce;
+            }
+            else
+            {
+                if (!objects_to_lock.isEmpty())
+                    unlock(lockType, objects_to_lock.get(0), run_release_callback);
+            }
+        }
+
+        final int getHoldCount(LockType lockType)
+        {
+            int hold_count = 0;
+            for (Object mutex : objects_to_lock)
+                hold_count += getHoldCount(lockType, mutex);
+            return hold_count;
+        }
+
+        abstract boolean isLegacy(Object mutex);
+
+        abstract void waitForLock(LockType lockType, Object mutex);
+
+        abstract boolean tryLock(LockType lockType, Object mutex);
+
+        abstract void lock(LockType lockType, Object mutex);
+
+        abstract void unlock(LockType lockType, Object mutex, boolean run_release_callback);
+
+        abstract int getHoldCount(LockType lockType, Object mutex);
     }
 
-    public static SyncList getNewSyncList()
+    public static SyncWrapper getNewSyncWrapper(Object suggested_mutex, Callback<?> release_callback)
     {
-        return sync_utils_instance.getNewSyncListImpl();
+        SyncWrapper sync = getNewSyncWrapper();
+        sync.addObjectToLock(suggested_mutex, release_callback);
+        return sync;
     }
 
-    public static final Object createMutex(Object suggested_mutex)
+    public static SyncWrapper getNewSyncWrapper()
+    {
+        return sync_utils_instance.getNewSyncWrapperImpl();
+    }
+
+    public static Object createMutex(Object suggested_mutex)
     {
         return sync_utils_instance.createMutexImpl(suggested_mutex);
     }
 
-    public static final <T> T synchronizeWrite(Object mutex, Callback<T> callback)
+    public static <T> T synchronizeWrite(Object mutex, Callback<T> callback)
     {
-        return sync_utils_instance.synchronizeWriteImpl(getObjectToLock(mutex), callback, null);
+        return synchronizeWrite(mutex, callback, null);
     }
 
-    public static final  <T> T synchronizeWrite(Object mutex, Callback<T> callback, Callback<?> release_callback)
+    public static <T> T synchronizeWrite(Object mutex, Callback<T> callback, Callback<?> release_callback)
     {
-        return sync_utils_instance.synchronizeWriteImpl(getObjectToLock(mutex), callback, release_callback);
+        return sync_utils_instance.synchronizeWriteImpl(getNewSyncWrapper(mutex, release_callback), callback);
     }
 
-    public static final <T> T synchronizeRead(Object mutex, Callback<T> callback)
+    public static <T> T synchronizeWrite(SyncWrapper sync, Callback<T> callback)
     {
-        return sync_utils_instance.synchronizeReadImpl(getObjectToLock(mutex), callback, null);
+        return sync_utils_instance.synchronizeWriteImpl(sync, callback);
     }
 
-    public static final <T> T synchronizeRead(Object mutex, Callback<T> callback, Callback<?> release_callback)
+    public static <T> T synchronizeRead(Object mutex, Callback<T> callback)
     {
-        return sync_utils_instance.synchronizeReadImpl(getObjectToLock(mutex), callback, release_callback);
+        return synchronizeRead(mutex, callback, null);
+    }
+
+    public static <T> T synchronizeRead(Object mutex, Callback<T> callback, Callback<?> release_callback)
+    {
+        return sync_utils_instance.synchronizeReadImpl(getNewSyncWrapper(mutex, release_callback), callback);
+    }
+
+    public static <T> T synchronizeRead(SyncWrapper sync, Callback<T> callback)
+    {
+        return sync_utils_instance.synchronizeReadImpl(sync, callback);
     }
 
     public static <T> T synchronizeWriteThenRead(Object mutex, Callback<?> write_callback, Callback<T> read_callback)
     {
-        return sync_utils_instance.synchronizeWriteThenReadImpl(getObjectToLock(mutex), write_callback, read_callback, null);
+        return synchronizeWriteThenRead(mutex, write_callback, null, mutex, read_callback, null);
+    }
+
+    public static <T> T synchronizeWriteThenRead(Object write_mutex, Callback<?> write_callback, Object read_mutex, Callback<T> read_callback)
+    {
+        return synchronizeWriteThenRead(write_mutex, write_callback, null, read_mutex, read_callback, null);
     }
 
     public static <T> T synchronizeWriteThenRead(Object mutex, Callback<?> write_callback, Callback<T> read_callback, Callback<?> release_callback)
     {
-        return sync_utils_instance.synchronizeWriteThenReadImpl(getObjectToLock(mutex), write_callback, read_callback, release_callback);
+        return synchronizeWriteThenRead(mutex, write_callback, release_callback, mutex, read_callback, release_callback);
+    }
+
+    public static <T> T synchronizeWriteThenRead(Object write_mutex, Callback<?> write_callback, Callback<?> write_release_callback, Object read_mutex, Callback<T> read_callback, Callback<?> read_release_callback)
+    {
+        return sync_utils_instance.synchronizeWriteThenReadImpl(getNewSyncWrapper(write_mutex, write_release_callback), write_callback, getNewSyncWrapper(read_mutex, read_release_callback), read_callback);
+    }
+
+    public static <T> T synchronizeWriteThenRead(SyncWrapper sync, Callback<?> write_callback, Callback<T> read_callback)
+    {
+        return synchronizeWriteThenRead(sync, write_callback, sync, read_callback);
+    }
+
+    public static <T> T synchronizeWriteThenRead(SyncWrapper write_sync, Callback<?> write_callback, SyncWrapper read_sync, Callback<T> read_callback)
+    {
+        return sync_utils_instance.synchronizeWriteThenReadImpl(write_sync, write_callback, read_sync, read_callback);
     }
 
     public static <T> T synchronizeConditionalWrite(Object mutex, Condition write_condition, Callback<T> write_callback)
     {
-        return sync_utils_instance.synchronizeConditionalWriteImpl(getObjectToLock(mutex), write_condition, write_callback, null);
+        return synchronizeConditionalWrite(mutex, write_condition, write_callback, null);
     }
 
     public static <T> T synchronizeConditionalWrite(Object mutex, Condition write_condition, Callback<T> write_callback, Callback<?> release_callback)
     {
-        return sync_utils_instance.synchronizeConditionalWriteImpl(getObjectToLock(mutex), write_condition, write_callback, release_callback);
+        return sync_utils_instance.synchronizeConditionalWriteImpl(getNewSyncWrapper(mutex, release_callback), write_condition, write_callback);
+    }
+
+    public static <T> T synchronizeConditionalWrite(SyncWrapper sync, Condition write_condition, Callback<T> write_callback)
+    {
+        return sync_utils_instance.synchronizeConditionalWriteImpl(sync, write_condition, write_callback);
     }
 
     public static <T> T synchronizeConditionalWriteThenRead(Object mutex, Condition write_condition, Callback<?> write_callback, Callback<T> read_callback)
     {
-        return sync_utils_instance.synchronizeConditionalWriteThenReadImpl(getObjectToLock(mutex), write_condition, write_callback, read_callback, null);
+        return synchronizeConditionalWriteThenRead(mutex, write_condition, write_callback, null, mutex, read_callback, null);
+    }
+
+    public static <T> T synchronizeConditionalWriteThenRead(Object write_mutex, Condition write_condition, Callback<?> write_callback, Object read_mutex, Callback<T> read_callback)
+    {
+        return synchronizeConditionalWriteThenRead(write_mutex, write_condition, write_callback, null, read_mutex, read_callback, null);
     }
 
     public static <T> T synchronizeConditionalWriteThenRead(Object mutex, Condition write_condition, Callback<?> write_callback, Callback<T> read_callback, Callback<?> release_callback)
     {
-        return sync_utils_instance.synchronizeConditionalWriteThenReadImpl(getObjectToLock(mutex), write_condition, write_callback, read_callback, release_callback);
+        return synchronizeConditionalWriteThenRead(mutex, write_condition, write_callback, release_callback, mutex, read_callback, release_callback);
     }
 
-    abstract SyncList getNewSyncListImpl();
+    public static <T> T synchronizeConditionalWriteThenRead(Object write_mutex, Condition write_condition, Callback<?> write_callback, Object read_mutex, Callback<T> read_callback, Callback<?> release_callback)
+    {
+        return synchronizeConditionalWriteThenRead(write_mutex, write_condition, write_callback, release_callback, read_mutex, read_callback, release_callback);
+    }
+
+    public static <T> T synchronizeConditionalWriteThenRead(Object write_mutex, Condition write_condition, Callback<?> write_callback, Callback<?> write_release_callback, Object read_mutex, Callback<T> read_callback, Callback<?> read_release_callback)
+    {
+        return sync_utils_instance.synchronizeConditionalWriteThenReadImpl(getNewSyncWrapper(write_mutex, write_release_callback), write_condition, write_callback, getNewSyncWrapper(read_mutex, read_release_callback), read_callback);
+    }
+
+    public static <T> T synchronizeConditionalWriteThenRead(SyncWrapper sync, Condition write_condition, Callback<?> write_callback, Callback<T> read_callback)
+    {
+        return synchronizeConditionalWriteThenRead(sync, write_condition, write_callback, sync, read_callback);
+    }
+
+    public static <T> T synchronizeConditionalWriteThenRead(SyncWrapper write_sync, Condition write_condition, Callback<?> write_callback, SyncWrapper read_sync, Callback<T> read_callback)
+    {
+        return sync_utils_instance.synchronizeConditionalWriteThenReadImpl(write_sync, write_condition, write_callback, read_sync, read_callback);
+    }
+
+    abstract SyncWrapper getNewSyncWrapperImpl();
 
     abstract Object createMutexImpl(Object suggested_mutex);
 
-    abstract <T> T synchronizeWriteImpl(Object mutex, Callback<T> callback, Callback<?> release_callback);
+    abstract SyncCondition getSyncConditionImpl(Object suggested_mutex);
 
-    abstract <T> T synchronizeReadImpl(Object mutex, Callback<T> callback, Callback<?> release_callback);
+    abstract <T> T synchronizeWriteImpl(SyncWrapper mutex, Callback<T> callback);
 
-    abstract <T> T synchronizeWriteThenReadImpl(Object mutex, Callback<?> write_callback, Callback<T> read_callback, Callback<?> release_callback);
+    abstract <T> T synchronizeReadImpl(SyncWrapper mutex, Callback<T> callback);
 
-    abstract <T> T synchronizeConditionalWriteThenReadImpl(Object mutex, Condition write_condition, Callback<?> write_callback, Callback<T> read_callback, Callback<?> release_callback);
+    abstract <T> T synchronizeWriteThenReadImpl(SyncWrapper write_mutex, Callback<?> write_callback, SyncWrapper read_mutex, Callback<T> read_callback);
 
-    abstract <T> T synchronizeConditionalWriteImpl(Object mutex, Condition write_condition, Callback<T> write_callback, Callback<?> release_callback);
+    abstract <T> T synchronizeConditionalWriteThenReadImpl(SyncWrapper write_mutex, Condition write_condition, Callback<?> write_callback, SyncWrapper read_mutex, Callback<T> read_callback);
+
+    abstract <T> T synchronizeConditionalWriteImpl(SyncWrapper mutex, Condition write_condition, Callback<T> write_callback);
 }

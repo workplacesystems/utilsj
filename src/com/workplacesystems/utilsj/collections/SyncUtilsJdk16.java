@@ -16,65 +16,23 @@
 
 package com.workplacesystems.utilsj.collections;
 
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import com.workplacesystems.utilsj.Callback;
-import com.workplacesystems.utilsj.Condition;
-import com.workplacesystems.utilsj.UtilsjException;
 
 /**
  * IMPORTANT: This source must be kept in sync with SyncUtilsReentrant
  *
  * @author dave
  */
-class SyncUtilsJdk16 extends SyncUtilsLegacy
+class SyncUtilsJdk16 extends SyncUtilsReentrant
 {
     /**
      * Creates a new instance of SyncUtilsJdk16
      */
     SyncUtilsJdk16()
     {
-    }
-
-    public static class SyncListJdk16 extends SyncList
-    {
-        @Override
-        boolean tryLock(Object mutex)
-        {
-            if (mutex instanceof ReentrantReadWriteLock)
-            {
-                ReentrantReadWriteLock lock = (ReentrantReadWriteLock)mutex;
-
-                if (lock.getReadHoldCount() > 0 && lock.getWriteHoldCount() == 0)
-                    throw new IllegalStateException("Lock cannot be upgraded from read to write");
-
-                try
-                {
-                    return lock.writeLock().tryLock(30, TimeUnit.SECONDS);
-                }
-                catch (InterruptedException e)
-                {
-                    return false;
-                }
-            }
-            else
-                throw new IllegalStateException("Lock cannot be locked within SyncList");
-        }
-
-        @Override
-        void unlock(Object mutex)
-        {
-            ReentrantReadWriteLock lock = (ReentrantReadWriteLock)mutex;
-            lock.writeLock().unlock();
-        }
-        
-    }
-
-    @Override
-    SyncList getNewSyncListImpl()
-    {
-        return new SyncListJdk16();
     }
 
     @Override
@@ -90,320 +48,174 @@ class SyncUtilsJdk16 extends SyncUtilsLegacy
         return new ReentrantReadWriteLock();
     }
 
-    @Override
-    <T> T synchronizeWriteImpl(Object mutex, Callback<T> callback, Callback<?> release_callback)
+    class SyncConditionJdk16 implements SyncCondition
     {
-        if (mutex instanceof ReentrantReadWriteLock)
+        private final Condition condition;
+
+        private SyncConditionJdk16(Condition condition)
+        {
+            this.condition = condition;
+        }
+
+        public void await() throws InterruptedException
+        {
+            condition.await();
+        }
+
+        public void signal()
+        {
+            condition.signal();
+        }
+
+        public void signalAll()
+        {
+            condition.signalAll();
+        }
+    }
+
+    @Override
+    SyncCondition getSyncConditionImpl(Object suggested_mutex)
+    {
+        if (suggested_mutex instanceof ReentrantReadWriteLock)
+            return new SyncConditionJdk16(((ReentrantReadWriteLock)suggested_mutex).writeLock().newCondition());
+
+        return super.getSyncConditionImpl(suggested_mutex);
+    }
+
+    static class SyncWrapperJdk16 extends SyncWrapper
+    {
+        SyncWrapperJdk16()
+        {
+            super();
+        }
+
+        @Override
+        boolean isLegacy(Object mutex)
+        {
+            return !(mutex instanceof ReentrantReadWriteLock);
+        }
+
+        @Override
+        protected void lock(LockType lockType, Object mutex)
         {
             ReentrantReadWriteLock lock = (ReentrantReadWriteLock)mutex;
+            switch (lockType)
+            {
+            case WRITE:
+                if (lock.getReadHoldCount() > 0 && lock.getWriteHoldCount() == 0)
+                    throw new IllegalStateException("Lock cannot be upgraded from read to write");
 
-            if (lock.getReadHoldCount() > 0 && lock.getWriteHoldCount() == 0)
-                throw new IllegalStateException("Lock cannot be upgraded from read to write");
+                lock.writeLock().lock();
+                break;
 
-            lock.writeLock().lock();
+            case READ:
+                lock.readLock().lock();
+                break;
+            }
+        }
+
+        @Override
+        protected void unlock(LockType lockType, Object mutex, boolean run_release_callback)
+        {
+            ReentrantReadWriteLock lock = (ReentrantReadWriteLock)mutex;
+            Callback<?> release_callback = getReleaseCallback(mutex);
             try
             {
-                return callback.action();
+                if (run_release_callback)
+                {
+                    switch (lockType)
+                    {
+                    case WRITE:
+                        if (lock.getReadHoldCount() == 0 && lock.getWriteHoldCount() == 1 && release_callback != null)
+                            release_callback.action();
+                        break;
+
+                    case READ:
+                        if (lock.getReadHoldCount() == 1 && lock.getWriteHoldCount() == 0 && release_callback != null)
+                            release_callback.action();
+                        break;
+                    }
+                }
             }
             finally
             {
-                try
+                switch (lockType)
                 {
-                    if (lock.getReadHoldCount() == 0 && lock.getWriteHoldCount() == 1 && release_callback != null)
-                        release_callback.action();
-                }
-                finally
-                {
+                case WRITE:
                     lock.writeLock().unlock();
-                }
-            }
-        }
-        else if (mutex instanceof SyncList)
-        {
-            if (release_callback != null)
-                throw new UtilsjException("release_callback not supported for SyncLists");
+                    break;
 
-            SyncList sync_list = (SyncList)mutex;
-            try
-            {
-                sync_list.lockAll();
-                return callback.action();
-            }
-            finally
-            {
-                sync_list.unlockAll();
-            }
-        }
-        else
-            return super.synchronizeWriteImpl(mutex, callback, release_callback);
-    }
-
-    @Override
-    <T> T synchronizeReadImpl(Object mutex, Callback<T> callback, Callback<?> release_callback)
-    {
-        if (mutex instanceof ReentrantReadWriteLock)
-        {
-            ReentrantReadWriteLock lock = (ReentrantReadWriteLock)mutex;
-
-            lock.readLock().lock();
-            try
-            {
-                return callback.action();
-            }
-            finally
-            {
-                try
-                {
-                    if (lock.getReadHoldCount() == 1 && lock.getWriteHoldCount() == 0 && release_callback != null)
-                        release_callback.action();
-                }
-                finally
-                {
+                case READ:
                     lock.readLock().unlock();
+                    break;
                 }
             }
         }
-        else if (mutex instanceof SyncList)
-        {
-            throw new UnsupportedOperationException("SyncList cannot be locked for read.");
-        }
-        else
-            return super.synchronizeReadImpl(mutex, callback, release_callback);
-    }
 
-    @Override
-    <T> T synchronizeWriteThenReadImpl(Object mutex, Callback<?> write_callback, Callback<T> read_callback, Callback<?> release_callback)
-    {
-        if (mutex instanceof ReentrantReadWriteLock)
+        @Override
+        boolean tryLock(LockType lockType, Object mutex)
+        {
+            ReentrantReadWriteLock lock = (ReentrantReadWriteLock)mutex;
+            switch (lockType)
+            {
+            case WRITE:
+                if (lock.getReadHoldCount() > 0 && lock.getWriteHoldCount() == 0)
+                    throw new IllegalStateException("Lock cannot be upgraded from read to write");
+
+                return lock.writeLock().tryLock();
+
+            case READ:
+                return lock.readLock().tryLock();
+            }
+
+            return false;
+        }
+
+        @Override
+        void waitForLock(LockType lockType, Object mutex)
         {
             ReentrantReadWriteLock lock = (ReentrantReadWriteLock)mutex;
 
-            boolean read_lock = false;
-            boolean write_lock = false;
-
-            if (lock.getReadHoldCount() > 0 && lock.getWriteHoldCount() == 0)
-                throw new IllegalStateException("Lock cannot be upgraded from read to write");
-
-            lock.writeLock().lock();
-            write_lock = true;
-
-            lock.readLock().lock();
-            read_lock = true;
-            
-            try
+            switch (lockType)
             {
-                write_callback.action();
+            case WRITE:
+                if (lock.getReadHoldCount() > 0 && lock.getWriteHoldCount() == 0)
+                    throw new IllegalStateException("Lock cannot be upgraded from read to write");
 
+                lock.writeLock().lock();
                 lock.writeLock().unlock();
-                write_lock = false;
-                
-                return read_callback.action();
-            }
-            finally
-            {
-                if (write_lock)
-                {
-                    try
-                    {
-                        if (!read_lock)
-                        {
-                            if (lock.getReadHoldCount() == 0 && lock.getWriteHoldCount() == 1 && release_callback != null)
-                                release_callback.action();
-                        }
-                    }
-                    finally
-                    {
-                        lock.writeLock().unlock();
-                    }
-                }
 
-                if (read_lock)
-                {
-                    try
-                    {
-                        if (lock.getReadHoldCount() == 1 && lock.getWriteHoldCount() == 0 && release_callback != null)
-                            release_callback.action();
-                    }
-                    finally
-                    {
-                        lock.readLock().unlock();
-                    }
-                }
+                break;
+
+            case READ:
+                lock.readLock().lock();
+                lock.readLock().unlock();
+
+                break;
             }
         }
-        else if (mutex instanceof SyncList)
-        {
-            throw new UnsupportedOperationException("SyncList cannot be locked for write then read.");
-        }
-        else
-            return super.synchronizeWriteThenReadImpl(mutex, write_callback, read_callback, release_callback);
-    }
 
-    @Override
-    <T> T synchronizeConditionalWriteImpl(Object mutex, Condition write_condition, Callback<T> write_callback, Callback<?> release_callback)
-    {
-        if (mutex instanceof ReentrantReadWriteLock)
+        @Override
+        int getHoldCount(LockType lockType, Object mutex)
         {
             ReentrantReadWriteLock lock = (ReentrantReadWriteLock)mutex;
 
-            boolean read_lock = false;
-            boolean write_lock = false;
-
-            int read_hold_count = lock.getReadHoldCount();
-            if (read_hold_count > 0 && write_condition.isTrue(read_hold_count))
-                throw new IllegalStateException("Lock cannot be upgraded from read to write");
-
-            // First take the read lock
-            lock.readLock().lock();
-            read_lock = true;
-
-            try
+            switch (lockType)
             {
-                // Check whether the write condition is true
-                if (write_condition.isTrue(read_hold_count))
-                {
-                    lock.readLock().unlock();
-                    read_lock = false;
+            case WRITE:
+                return lock.getWriteHoldCount();
 
-                    // At this point there is no lock and therefore the write condition maybe altered
-                    lock.writeLock().lock();
-                    write_lock = true;
-
-                    // So check again now we have the write lock
-                    if (write_condition.isTrue(read_hold_count))
-                    {
-                        write_callback.action();
-
-                        lock.writeLock().unlock();
-                        write_lock = false;
-                    }
-                }
-
-                return null;
+            case READ:
+                return lock.getReadHoldCount();
             }
-            finally
-            {
-                if (write_lock)
-                {
-                    try
-                    {
-                        if (!read_lock)
-                        {
-                            if (lock.getReadHoldCount() == 0 && lock.getWriteHoldCount() == 1 && release_callback != null)
-                                release_callback.action();
-                        }
-                    }
-                    finally
-                    {
-                        lock.writeLock().unlock();
-                    }
-                }
 
-                if (read_lock)
-                {
-                    try
-                    {
-                        if (lock.getReadHoldCount() == 1 && lock.getWriteHoldCount() == 0 && release_callback != null)
-                            release_callback.action();
-                    }
-                    finally
-                    {
-                        lock.readLock().unlock();
-                    }
-                }
-            }
+            return 0;
         }
-        else if (mutex instanceof SyncList)
-        {
-            throw new UnsupportedOperationException("SyncList cannot be locked for conditional write.");
-        }
-        else
-            return super.synchronizeConditionalWriteImpl(mutex, write_condition, write_callback, release_callback);
     }
 
     @Override
-    <T> T synchronizeConditionalWriteThenReadImpl(Object mutex, Condition write_condition, Callback<?> write_callback, Callback<T> read_callback, Callback<?> release_callback)
+    SyncWrapper getNewSyncWrapperImpl()
     {
-        if (mutex instanceof ReentrantReadWriteLock)
-        {
-            ReentrantReadWriteLock lock = (ReentrantReadWriteLock)mutex;
-
-            boolean read_lock = false;
-            boolean write_lock = false;
-
-            int read_hold_count = lock.getReadHoldCount();
-            if (read_hold_count > 0 && write_condition.isTrue(read_hold_count))
-                throw new IllegalStateException("Lock cannot be upgraded from read to write");
-
-            // First take the read lock
-            lock.readLock().lock();
-            read_lock = true;
-
-            try
-            {
-                // Check whether the write condition is true
-                if (write_condition.isTrue(read_hold_count))
-                {
-                    lock.readLock().unlock();
-                    read_lock = false;
-
-                    // At this point there is no lock and therefore the write condition maybe altered
-                    lock.writeLock().lock();
-                    write_lock = true;
-
-                    // Retake the read lock now we have the write lock
-                    lock.readLock().lock();
-                    read_lock = true;
-
-                    // So check again now we have the write lock
-                    if (write_condition.isTrue(read_hold_count))
-                    {
-                        write_callback.action();
-
-                        lock.writeLock().unlock();
-                        write_lock = false;
-                    }
-                }
-
-                return read_callback.action();
-            }
-            finally
-            {
-                if (write_lock)
-                {
-                    try
-                    {
-                        if (!read_lock)
-                        {
-                            if (lock.getReadHoldCount() == 0 && lock.getWriteHoldCount() == 1 && release_callback != null)
-                                release_callback.action();
-                        }
-                    }
-                    finally
-                    {
-                        lock.writeLock().unlock();
-                    }
-                }
-
-                if (read_lock)
-                {
-                    try
-                    {
-                        if (lock.getReadHoldCount() == 1 && lock.getWriteHoldCount() == 0 && release_callback != null)
-                            release_callback.action();
-                    }
-                    finally
-                    {
-                        lock.readLock().unlock();
-                    }
-                }
-            }
-        }
-        else if (mutex instanceof SyncList)
-        {
-            throw new UnsupportedOperationException("SyncList cannot be locked for conditional write then read.");
-        }
-        else
-            return super.synchronizeConditionalWriteThenReadImpl(mutex, write_condition, write_callback, read_callback, release_callback);
+        return new SyncWrapperJdk16();
     }
 }

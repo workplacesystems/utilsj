@@ -80,7 +80,7 @@ public class SynchronizedCollection<E> implements Collection<E>, SynchronizedDec
             throw new IllegalArgumentException("Collection must not be null");
         }
         this.collection = collection;
-        this.lock = lock;
+        this.lock = SyncUtils.createMutex(lock);
     }
 
 

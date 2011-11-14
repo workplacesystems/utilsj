@@ -18,7 +18,6 @@ package com.workplacesystems.utilsj.collections;
 
 import com.workplacesystems.utilsj.Callback;
 import com.workplacesystems.utilsj.Condition;
-import com.workplacesystems.utilsj.UtilsjException;
 
 /**
  *
@@ -33,58 +32,75 @@ abstract class SyncUtilsLegacy extends SyncUtils
     {
     }
 
-    @Override
-    Object createMutexImpl(Object suggested_mutex)
+    class SyncConditionLegacy implements SyncCondition
     {
-        if (suggested_mutex == null)
-            return new Object();
-        return getObjectToLock(suggested_mutex);
+        private final Object mutex;
+
+        private SyncConditionLegacy(Object mutex)
+        {
+            this.mutex = mutex;
+        }
+
+        @SuppressWarnings("WaitWhileNotSynced")
+        public void await() throws InterruptedException
+        {
+            mutex.wait();
+        }
+
+        @SuppressWarnings("NotifyWhileNotSynced")
+        public void signal()
+        {
+            mutex.notify();
+        }
+
+        @SuppressWarnings("NotifyWhileNotSynced")
+        public void signalAll()
+        {
+            mutex.notifyAll();
+        }
     }
 
     @Override
-    <T> T  synchronizeWriteImpl(Object mutex, Callback<T> callback, Callback<?> release_callback)
+    SyncCondition getSyncConditionImpl(Object suggested_mutex)
     {
-        if (release_callback != null)
-            throw new UtilsjException("release_callback cannot be used with legacy sync");
+        return new SyncConditionLegacy(suggested_mutex);
+    }
 
-        synchronized (mutex)
+    @Override
+    <T> T synchronizeWriteImpl(SyncWrapper mutex, Callback<T> callback)
+    {
+        synchronized (mutex.getMutex(0))
         {
             return callback.action();
         }
     }
 
     @Override
-    <T> T  synchronizeReadImpl(Object mutex, Callback<T> callback, Callback<?> release_callback)
+    <T> T synchronizeReadImpl(SyncWrapper mutex, Callback<T> callback)
     {
-        if (release_callback != null)
-            throw new UtilsjException("release_callback cannot be used with legacy sync");
-
-        synchronized (mutex)
+        synchronized (mutex.getMutex(0))
         {
             return callback.action();
         }
     }
 
     @Override
-    <T> T  synchronizeWriteThenReadImpl(Object mutex, Callback<?> write_callback, Callback<T> read_callback, Callback<?> release_callback)
+    <T> T synchronizeWriteThenReadImpl(SyncWrapper write_mutex, Callback<?> write_callback, SyncWrapper read_mutex, Callback<T> read_callback)
     {
-        if (release_callback != null)
-            throw new UtilsjException("release_callback cannot be used with legacy sync");
-
-        synchronized (mutex)
+        synchronized (read_mutex.getMutex(0))
         {
-            write_callback.action();
+            synchronized (write_mutex.getMutex(0))
+            {
+                write_callback.action();
+            }
             return read_callback.action();
         }
     }
 
     @Override
-    <T> T  synchronizeConditionalWriteImpl(Object mutex, Condition write_condition, Callback<T> write_callback, Callback<?> release_callback)
+    <T> T synchronizeConditionalWriteImpl(SyncWrapper mutex, Condition write_condition, Callback<T> write_callback)
     {
-        if (release_callback != null)
-            throw new UtilsjException("release_callback cannot be used with legacy sync");
-
-        synchronized (mutex)
+        synchronized (mutex.getMutex(0))
         {
             if (write_condition.isTrue(0))
                 return write_callback.action();
@@ -93,15 +109,15 @@ abstract class SyncUtilsLegacy extends SyncUtils
     }
 
     @Override
-    <T> T  synchronizeConditionalWriteThenReadImpl(Object mutex, Condition write_condition, Callback<?> write_callback, Callback<T> read_callback, Callback<?> release_callback)
+    <T> T synchronizeConditionalWriteThenReadImpl(SyncWrapper write_mutex, Condition write_condition, Callback<?> write_callback, SyncWrapper read_mutex, Callback<T> read_callback)
     {
-        if (release_callback != null)
-            throw new UtilsjException("release_callback cannot be used with legacy sync");
-
-        synchronized (mutex)
+        synchronized (read_mutex.getMutex(0))
         {
-            if (write_condition.isTrue(0))
-                write_callback.action();
+            synchronized (write_mutex.getMutex(0))
+            {
+                if (write_condition.isTrue(0))
+                    write_callback.action();
+            }
             return read_callback.action();
         }
     }
