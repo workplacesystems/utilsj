@@ -381,12 +381,10 @@ class SyncUtilsReentrant extends SyncUtilsLegacy
 
                 // So check again now we have the write lock
                 if (write_condition.isTrue(read_hold_count))
-                {
                     write_callback.action();
 
-                    write_mutex.unlock(LockType.WRITE);
-                    write_lock = false;
-                }
+                write_mutex.unlock(LockType.WRITE);
+                write_lock = false;
             }
 
             return read_callback.action();
