@@ -28,6 +28,7 @@ public class HasLessThan<T> extends IterativeCallback<T, HasLessThan<T>>
 {
     private int total;
     private int count = 0;
+    private boolean used_without_iteration = false;
 
     private HasLessThan() {}
 
@@ -39,7 +40,10 @@ public class HasLessThan<T> extends IterativeCallback<T, HasLessThan<T>>
     public HasLessThan<T> iterate(final FilterableCollection<? extends T> c)
     {
         if (total <= 0)
+        {
+            used_without_iteration = true;
             return this;
+        }
 
         super.iterate(c);
 
@@ -59,7 +63,7 @@ public class HasLessThan<T> extends IterativeCallback<T, HasLessThan<T>>
      */
     public boolean hasLess() throws UtilsjException
     {
-        if (!hasBeenUsed())
+        if (!hasBeenUsed() && !used_without_iteration)
             throw new UtilsjException("HasLessThan.hasLess() called without having been used");
         return count < total;
     }
