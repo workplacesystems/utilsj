@@ -28,11 +28,14 @@ import com.workplacesystems.utilsj.Callback;
  */
 class SyncUtilsJdk16 extends SyncUtilsReentrant
 {
+    private final boolean disableFairSyncLocks;
+
     /**
      * Creates a new instance of SyncUtilsJdk16
      */
     SyncUtilsJdk16()
     {
+        this.disableFairSyncLocks = Boolean.getBoolean("com.workplacesystems.utilsj.disableFairSyncLocks");
     }
 
     @Override
@@ -45,7 +48,7 @@ class SyncUtilsJdk16 extends SyncUtilsReentrant
         if (suggested_mutex instanceof ReentrantReadWriteLock)
             return suggested_mutex;
 
-        return new ReentrantReadWriteLock();
+        return new ReentrantReadWriteLock(disableFairSyncLocks ? false : true);
     }
 
     class SyncConditionJdk16 implements SyncCondition
