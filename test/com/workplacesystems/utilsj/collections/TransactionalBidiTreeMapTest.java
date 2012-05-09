@@ -65,7 +65,7 @@ public class TransactionalBidiTreeMapTest extends TestCase {
         tbtm.put(new Integer(4), "B");
         return tbtm;
     }
-    
+
     public void testInstantiationEmpty() {
         TransactionalBidiTreeMap tbtm = new TransactionalBidiTreeMap();
         assertTrue(tbtm != null);
@@ -2666,7 +2666,34 @@ public class TransactionalBidiTreeMapTest extends TestCase {
                 fail("map found " + v + " by value after removeValue()");
         }
     }
-    
+
+    private class FilterCounter implements Filter<Object> {
+
+        private int count = 0;
+
+        public boolean isValid(Object obj) {
+            count++;
+            return true;
+        }
+    }
+
+    public void testFilter() {
+        TransactionalBidiTreeMap tbtm = GetDefault();
+        FilterCounter filter = new FilterCounter();
+        FilterableCollection fc = tbtm.valuesByValue().filteredCollection(filter);
+        Iterator i = fc.iterator();
+
+        assertEquals(1, filter.count);
+        i.hasNext();
+        assertEquals(1, filter.count);
+        i.next();
+        assertEquals(2, filter.count);
+        i.hasNext();
+        assertEquals(2, filter.count);
+        i.next();
+        assertEquals(3, filter.count);
+   }
+
     /* ********** START helper methods ********** */
     
     class Value implements Comparable {
