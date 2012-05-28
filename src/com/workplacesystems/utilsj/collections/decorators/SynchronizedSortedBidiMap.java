@@ -70,6 +70,16 @@ public class SynchronizedSortedBidiMap<K,V> extends SynchronizedSortedMap<K,V> i
     
     //-----------------------------------------------------------------------
     
+    public Set<Map.Entry<K,V>> entrySet() {
+        return SyncUtils.synchronizeRead(lock, new Callback<Set<Map.Entry<K,V>>>() {
+            @Override
+            protected void doAction() {
+                FilterableSet<Map.Entry<K,V>> _set = (FilterableSet<Map.Entry<K,V>>)map.entrySet();
+                _return(new SynchronizedFilterableSet<Map.Entry<K,V>>(_set, lock));
+            }
+        });
+    }
+
     public FilterableSet<Map.Entry<K,V>> entrySetByValue() {
         return SyncUtils.synchronizeRead(lock, new Callback<FilterableSet<Map.Entry<K,V>>>() {
             @Override
