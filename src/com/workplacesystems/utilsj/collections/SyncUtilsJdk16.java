@@ -160,31 +160,42 @@ class SyncUtilsJdk16 extends SyncUtilsReentrant
         boolean tryLock(LockType lockType, Object mutex)
         {
             ReentrantReadWriteLock lock = (ReentrantReadWriteLock)mutex;
-            switch (lockType)
-            {
-            case WRITE:
-                if (lock.getReadHoldCount() > 0 && lock.getWriteHoldCount() == 0)
-                    throw new IllegalStateException("Lock cannot be upgraded from read to write");
+            boolean interrupted = false;
+            try {
+                switch (lockType)
+                {
+                case WRITE:
+                    if (lock.getReadHoldCount() > 0 && lock.getWriteHoldCount() == 0)
+                        throw new IllegalStateException("Lock cannot be upgraded from read to write");
 
-                while (true) {
-                    try {
-                        // Use tryLock(long timeout, TimeUnit unit) with wait time of 0 instead of tryLock() to honour the fairness policy
-                        return lock.writeLock().tryLock(0, TimeUnit.SECONDS);
+                    while (true) {
+                        try {
+                            // Use tryLock(long timeout, TimeUnit unit) with wait time of 0 instead of tryLock() to honour the fairness policy
+                            return lock.writeLock().tryLock(0, TimeUnit.SECONDS);
+                        }
+                        catch (InterruptedException ie) {
+                            interrupted = true;
+                        }
                     }
-                    catch (InterruptedException ie) {}
+
+                case READ:
+                    while (true) {
+                        try {
+                            // Use tryLock(long timeout, TimeUnit unit) with wait time of 0 instead of tryLock() to honour the fairness policy
+                            return lock.readLock().tryLock(0, TimeUnit.SECONDS);
+                        }
+                        catch (InterruptedException ie) {
+                            interrupted = true;
+                        }
+                    }
                 }
 
-            case READ:
-                while (true) {
-                    try {
-                        // Use tryLock(long timeout, TimeUnit unit) with wait time of 0 instead of tryLock() to honour the fairness policy
-                        return lock.readLock().tryLock(0, TimeUnit.SECONDS);
-                    }
-                    catch (InterruptedException ie) {}
-                }
+                return false;
             }
-
-            return false;
+            finally {
+                if (interrupted)
+                    Thread.currentThread().interrupt();
+            }
         }
 
         @Override
