@@ -20,6 +20,7 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import com.workplacesystems.utilsj.Callback;
+import java.util.concurrent.TimeUnit;
 
 /**
  * IMPORTANT: This source must be kept in sync with SyncUtilsReentrant
@@ -165,10 +166,22 @@ class SyncUtilsJdk16 extends SyncUtilsReentrant
                 if (lock.getReadHoldCount() > 0 && lock.getWriteHoldCount() == 0)
                     throw new IllegalStateException("Lock cannot be upgraded from read to write");
 
-                return lock.writeLock().tryLock();
+                while (true) {
+                    try {
+                        // Use tryLock(long timeout, TimeUnit unit) with wait time of 0 instead of tryLock() to honour the fairness policy
+                        return lock.writeLock().tryLock(0, TimeUnit.SECONDS);
+                    }
+                    catch (InterruptedException ie) {}
+                }
 
             case READ:
-                return lock.readLock().tryLock();
+                while (true) {
+                    try {
+                        // Use tryLock(long timeout, TimeUnit unit) with wait time of 0 instead of tryLock() to honour the fairness policy
+                        return lock.readLock().tryLock(0, TimeUnit.SECONDS);
+                    }
+                    catch (InterruptedException ie) {}
+                }
             }
 
             return false;
