@@ -61,6 +61,9 @@ abstract class SyncUtilsLegacy extends SyncUtils
     }
 
     @Override
+    void dumpDebugReadLocksImpl(StringBuffer buffer) {}
+
+    @Override
     SyncCondition getSyncConditionImpl(Object suggested_mutex)
     {
         return new SyncConditionLegacy(suggested_mutex);

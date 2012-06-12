@@ -16,10 +16,16 @@
 
 package com.workplacesystems.utilsj.collections;
 
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import com.workplacesystems.utilsj.Callback;
+import java.util.Map;
+import java.util.WeakHashMap;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -29,14 +35,18 @@ import java.util.concurrent.TimeUnit;
  */
 class SyncUtilsJdk16 extends SyncUtilsReentrant
 {
-    private final boolean disableFairSyncLocks;
+    private final static boolean disableFairSyncLocks = Boolean.getBoolean("com.workplacesystems.utilsj.disableFairSyncLocks");
+    private final static boolean debugReadLocks = Boolean.getBoolean("com.workplacesystems.utilsj.debugReadLocks");
+    private final static String newLine = System.getProperty("line.separator");
+
+    protected final static Map<DebugReentrantReadWriteLock,Set<Thread>> threadReadLocks =
+            debugReadLocks ? Collections.synchronizedMap(new WeakHashMap<DebugReentrantReadWriteLock,Set<Thread>>()) : null;
 
     /**
      * Creates a new instance of SyncUtilsJdk16
      */
     SyncUtilsJdk16()
     {
-        this.disableFairSyncLocks = Boolean.getBoolean("com.workplacesystems.utilsj.disableFairSyncLocks");
     }
 
     @Override
@@ -49,7 +59,124 @@ class SyncUtilsJdk16 extends SyncUtilsReentrant
         if (suggested_mutex instanceof ReentrantReadWriteLock)
             return suggested_mutex;
 
-        return new ReentrantReadWriteLock(disableFairSyncLocks ? false : true);
+        if (debugReadLocks)
+            return new DebugReentrantReadWriteLock(disableFairSyncLocks ? false : true);
+        else
+            return new ReentrantReadWriteLock(disableFairSyncLocks ? false : true);
+    }
+
+    private static class DebugReentrantReadWriteLock extends ReentrantReadWriteLock {
+
+        private final ReadLock readerLock;
+
+        private DebugReentrantReadWriteLock(boolean fairMode) {
+            super(fairMode);
+            readerLock = new ReadLock(this);
+        }
+
+        @Override
+        public ReentrantReadWriteLock.ReadLock  readLock()  { return readerLock; }
+
+        public Thread getOwner0() {
+            return getOwner();
+        }
+
+        public Collection<Thread> getQueuedWriterThreads0() {
+            return getQueuedWriterThreads();
+        }
+
+        public Collection<Thread> getQueuedReaderThreads0() {
+            return getQueuedReaderThreads();
+        }
+
+        public static class ReadLock extends ReentrantReadWriteLock.ReadLock {
+            private final Set<Thread> readers = Collections.synchronizedSet(new HashSet<Thread>());
+
+            protected ReadLock(DebugReentrantReadWriteLock lock) {
+                super(lock);
+                threadReadLocks.put(lock, readers);
+            }
+
+            @Override
+            public void lock() {
+                super.lock();
+                readers.add(Thread.currentThread());
+            }
+
+            @Override
+            public void lockInterruptibly() throws InterruptedException {
+                super.lockInterruptibly();
+                readers.add(Thread.currentThread());
+            }
+
+            @Override
+            public  boolean tryLock() {
+                boolean locked = super.tryLock();
+                if (locked)
+                    readers.add(Thread.currentThread());
+                return locked;
+            }
+
+            @Override
+            public boolean tryLock(long timeout, TimeUnit unit) throws InterruptedException {
+                boolean locked = super.tryLock(timeout, unit);
+                if (locked)
+                    readers.add(Thread.currentThread());
+                return locked;
+            }
+
+            @Override
+            public  void unlock() {
+                super.unlock();
+                readers.remove(Thread.currentThread());
+            }
+        }
+    }
+
+    @Override
+    void dumpDebugReadLocksImpl(StringBuffer buffer) {
+        if (!debugReadLocks)
+            return;
+
+        synchronized (threadReadLocks) {
+            for (DebugReentrantReadWriteLock debugLock : threadReadLocks.keySet()) {
+                if (debugLock == null)
+                    continue;
+
+                Set<Thread> readers = threadReadLocks.get(debugLock);
+
+                buffer.append("Thread details for lock ");
+                buffer.append(debugLock.toString());
+                buffer.append(":");
+                buffer.append(newLine);
+                dumpThread("  Holding Writer", debugLock.getOwner0(), buffer);
+                synchronized (readers) {
+                    for (Thread thread : readers)
+                        dumpThread("  Holding Reader", thread, buffer);
+                }
+                for (Thread thread : debugLock.getQueuedWriterThreads0())
+                    dumpThread("  Waiting Writer", thread, buffer);
+                for (Thread thread : debugLock.getQueuedReaderThreads0())
+                    dumpThread("  Waiting Reader", thread, buffer);
+            }
+        }
+    }
+
+    private void dumpThread(String prefix, Thread thread, StringBuffer buffer) {
+        if (thread == null)
+            return;
+        buffer.append(prefix);
+        buffer.append(": \"");
+        buffer.append(thread.getName());
+        buffer.append("\" Thread id: ");
+        buffer.append(thread.getId());
+        buffer.append(newLine);
+        for (StackTraceElement stack : thread.getStackTrace()) {
+            buffer.append("      ");
+            buffer.append(stack.toString());
+            buffer.append(newLine);
+        }
+        buffer.append(newLine);
     }
 
     class SyncConditionJdk16 implements SyncCondition
@@ -201,25 +328,8 @@ class SyncUtilsJdk16 extends SyncUtilsReentrant
         @Override
         void waitForLock(LockType lockType, Object mutex)
         {
-            ReentrantReadWriteLock lock = (ReentrantReadWriteLock)mutex;
-
-            switch (lockType)
-            {
-            case WRITE:
-                if (lock.getReadHoldCount() > 0 && lock.getWriteHoldCount() == 0)
-                    throw new IllegalStateException("Lock cannot be upgraded from read to write");
-
-                lock.writeLock().lock();
-                lock.writeLock().unlock();
-
-                break;
-
-            case READ:
-                lock.readLock().lock();
-                lock.readLock().unlock();
-
-                break;
-            }
+            lock(lockType, mutex);
+            unlock(lockType, mutex, false);
         }
 
         @Override

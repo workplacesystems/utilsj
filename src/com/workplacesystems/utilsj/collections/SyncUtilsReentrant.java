@@ -47,6 +47,9 @@ class SyncUtilsReentrant extends SyncUtilsLegacy
         return new ReentrantReadWriteLock();
     }
 
+    @Override
+    void dumpDebugReadLocksImpl(StringBuffer buffer) {}
+
     class SyncConditionReentrant implements SyncCondition
     {
         private final edu.emory.mathcs.backport.java.util.concurrent.locks.Condition condition;
@@ -173,25 +176,8 @@ class SyncUtilsReentrant extends SyncUtilsLegacy
         @Override
         void waitForLock(LockType lockType, Object mutex)
         {
-            ReentrantReadWriteLock lock = (ReentrantReadWriteLock)mutex;
-
-            switch (lockType)
-            {
-            case WRITE:
-                if (lock.getReadHoldCount() > 0 && lock.getWriteHoldCount() == 0)
-                    throw new IllegalStateException("Lock cannot be upgraded from read to write");
-
-                lock.writeLock().lock();
-                lock.writeLock().unlock();
-
-                break;
-
-            case READ:
-                lock.readLock().lock();
-                lock.readLock().unlock();
-
-                break;
-            }
+            lock(lockType, mutex);
+            unlock(lockType, mutex, false);
         }
 
         @Override
