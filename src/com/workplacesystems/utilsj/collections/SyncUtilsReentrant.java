@@ -19,6 +19,7 @@ package com.workplacesystems.utilsj.collections;
 import com.workplacesystems.utilsj.Callback;
 import com.workplacesystems.utilsj.Condition;
 import edu.emory.mathcs.backport.java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.Map;
 
 /**
  * IMPORTANT: This source must be kept in sync with SyncUtilsJdk16
@@ -48,7 +49,9 @@ class SyncUtilsReentrant extends SyncUtilsLegacy
     }
 
     @Override
-    void dumpDebugReadLocksImpl(StringBuffer buffer) {}
+    Map<Long,ExtraLockInfo> getExtraLockInfosImpl() {
+        return null;
+    }
 
     class SyncConditionReentrant implements SyncCondition
     {

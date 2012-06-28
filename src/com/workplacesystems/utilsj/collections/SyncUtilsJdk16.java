@@ -16,6 +16,7 @@
 
 package com.workplacesystems.utilsj.collections;
 
+import java.lang.reflect.Field;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -24,6 +25,8 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import com.workplacesystems.utilsj.Callback;
+import java.lang.management.LockInfo;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.WeakHashMap;
 import java.util.concurrent.TimeUnit;
@@ -37,7 +40,6 @@ class SyncUtilsJdk16 extends SyncUtilsReentrant
 {
     private final static boolean disableFairSyncLocks = Boolean.getBoolean("com.workplacesystems.utilsj.disableFairSyncLocks");
     private final static boolean debugReadLocks = Boolean.getBoolean("com.workplacesystems.utilsj.debugReadLocks");
-    private final static String newLine = System.getProperty("line.separator");
 
     protected final static Map<DebugReentrantReadWriteLock,Set<Thread>> threadReadLocks =
             debugReadLocks ? Collections.synchronizedMap(new WeakHashMap<DebugReentrantReadWriteLock,Set<Thread>>()) : null;
@@ -134,49 +136,63 @@ class SyncUtilsJdk16 extends SyncUtilsReentrant
     }
 
     @Override
-    void dumpDebugReadLocksImpl(StringBuffer buffer) {
+    Map<Long,ExtraLockInfo> getExtraLockInfosImpl() {
         if (!debugReadLocks)
-            return;
+            return null;
 
+        Map<Long,ExtraLockInfo> extraLockInfos = new HashMap<Long,ExtraLockInfo>();
         synchronized (threadReadLocks) {
             for (DebugReentrantReadWriteLock debugLock : threadReadLocks.keySet()) {
                 if (debugLock == null)
                     continue;
 
-                Set<Thread> readers = threadReadLocks.get(debugLock);
+                final Set<Thread> readers = threadReadLocks.get(debugLock);
+                final Collection<Thread> queued_writers = debugLock.getQueuedWriterThreads0();
+                final Collection<Thread> queued_readers = debugLock.getQueuedReaderThreads0();
+                final Thread owner = debugLock.getOwner0();
 
-                buffer.append("Thread details for lock ");
-                buffer.append(debugLock.toString());
-                buffer.append(":");
-                buffer.append(newLine);
-                dumpThread("  Holding Writer", debugLock.getOwner0(), buffer);
+                //don't bother with locks with no activity
+                if (!debugLock.isWriteLocked() && debugLock.getReadLockCount()==0 &&
+                        readers.isEmpty() && queued_writers.isEmpty() &&
+                        queued_readers.isEmpty() && owner==null )
+                    continue;
+
+                LockInfo lockinfo = null;
+                try {
+                    Field syncField = ReentrantReadWriteLock.class.getDeclaredField("sync");
+                    syncField.setAccessible(true);
+                    Object syncInst = syncField.get(debugLock);
+                    lockinfo = new LockInfo(syncInst.getClass().getName(), System.identityHashCode(syncInst));
+                }
+                catch (NoSuchFieldException nsfe) {}
+                catch (IllegalAccessException iae) {}
+
+                if (lockinfo == null)
+                    lockinfo = new LockInfo(debugLock.getClass().getName(), System.identityHashCode(debugLock));
+
+                if (owner != null)
+                    getExtraLockInfo(extraLockInfos, owner).addHoldingWrite(lockinfo);
                 synchronized (readers) {
                     for (Thread thread : readers)
-                        dumpThread("  Holding Reader", thread, buffer);
+                        getExtraLockInfo(extraLockInfos, thread).addHoldingRead(lockinfo);
                 }
-                for (Thread thread : debugLock.getQueuedWriterThreads0())
-                    dumpThread("  Waiting Writer", thread, buffer);
-                for (Thread thread : debugLock.getQueuedReaderThreads0())
-                    dumpThread("  Waiting Reader", thread, buffer);
+                for (Thread thread : queued_writers)
+                    getExtraLockInfo(extraLockInfos, thread).setWaiting(ExtraLockInfo.WaitingFor.WRITE, lockinfo);
+                for (Thread thread : queued_readers)
+                    getExtraLockInfo(extraLockInfos, thread).setWaiting(ExtraLockInfo.WaitingFor.READ, lockinfo);
             }
         }
+
+        return extraLockInfos;
     }
 
-    private void dumpThread(String prefix, Thread thread, StringBuffer buffer) {
-        if (thread == null)
-            return;
-        buffer.append(prefix);
-        buffer.append(": \"");
-        buffer.append(thread.getName());
-        buffer.append("\" Thread id: ");
-        buffer.append(thread.getId());
-        buffer.append(newLine);
-        for (StackTraceElement stack : thread.getStackTrace()) {
-            buffer.append("      ");
-            buffer.append(stack.toString());
-            buffer.append(newLine);
+    private ExtraLockInfo getExtraLockInfo(Map<Long,ExtraLockInfo> extraLockInfos, Thread thread) {
+        ExtraLockInfo info = extraLockInfos.get(thread.getId());
+        if (info == null) {
+            info = new ExtraLockInfo();
+            extraLockInfos.put(thread.getId(), info);
         }
-        buffer.append(newLine);
+        return info;
     }
 
     class SyncConditionJdk16 implements SyncCondition

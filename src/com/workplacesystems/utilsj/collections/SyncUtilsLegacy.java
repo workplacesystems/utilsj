@@ -18,6 +18,7 @@ package com.workplacesystems.utilsj.collections;
 
 import com.workplacesystems.utilsj.Callback;
 import com.workplacesystems.utilsj.Condition;
+import java.util.Map;
 
 /**
  *
@@ -61,7 +62,9 @@ abstract class SyncUtilsLegacy extends SyncUtils
     }
 
     @Override
-    void dumpDebugReadLocksImpl(StringBuffer buffer) {}
+    Map<Long,ExtraLockInfo> getExtraLockInfosImpl() {
+        return null;
+    }
 
     @Override
     SyncCondition getSyncConditionImpl(Object suggested_mutex)

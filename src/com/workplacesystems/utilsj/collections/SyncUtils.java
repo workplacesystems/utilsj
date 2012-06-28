@@ -396,8 +396,8 @@ public abstract class SyncUtils
         return sync_utils_instance.synchronizeConditionalWriteThenReadImpl(write_sync, write_condition, write_callback, read_sync, read_callback);
     }
 
-    public static void dumpDebugReadLocks(StringBuffer buffer) {
-        sync_utils_instance.dumpDebugReadLocksImpl(buffer);
+    public static Map<Long,ExtraLockInfo> getExtraLockInfos() {
+        return sync_utils_instance.getExtraLockInfosImpl();
     }
 
     abstract SyncWrapper getNewSyncWrapperImpl();
@@ -416,5 +416,5 @@ public abstract class SyncUtils
 
     abstract <T> T synchronizeConditionalWriteImpl(SyncWrapper mutex, Condition write_condition, Callback<T> write_callback);
 
-    abstract void dumpDebugReadLocksImpl(StringBuffer buffer);
+    abstract Map<Long,ExtraLockInfo> getExtraLockInfosImpl();
 }
