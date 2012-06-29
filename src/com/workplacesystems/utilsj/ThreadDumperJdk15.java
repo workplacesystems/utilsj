@@ -95,8 +95,21 @@ class ThreadDumperJdk15 extends ThreadDumper {
     }
 
     void outputWaitingInfo(ThreadInfo info, ExtraLockInfo exLockInfo, StringBuffer buffer) {
-        // Not available for Jdk1.5
-    }
+        final String lockName = info.getLockName();
+        if (lockName != null) {
+            buffer.append("        - waiting on ");
+            buffer.append(lockName);
+            buffer.append(".");
+            long lock_owner = info.getLockOwnerId();
+            if (lock_owner!=-1) {
+                buffer.append(" Locked by \"");
+                buffer.append(info.getLockOwnerName());
+                buffer.append("\" tid=");
+                buffer.append(lock_owner);
+            }
+            buffer.append("\n");
+        }
+    } 
 
     int outputMonitors(ThreadInfo info, int stack_depth, int monitor_pointer, StringBuffer buffer) {
         // Not available for Jdk1.5
