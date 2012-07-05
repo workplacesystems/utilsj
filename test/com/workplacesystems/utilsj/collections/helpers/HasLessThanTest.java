@@ -18,6 +18,8 @@ package com.workplacesystems.utilsj.collections.helpers;
 
 import com.workplacesystems.utilsj.UtilsjException;
 import com.workplacesystems.utilsj.collections.FilterableArrayList;
+import com.workplacesystems.utilsj.collections.helpers.HasLessThan;
+
 import java.util.Arrays;
 import junit.framework.TestCase;
 
@@ -37,10 +39,12 @@ public class HasLessThanTest extends TestCase {
         HasLessThan<Integer> max = new HasLessThan<Integer>(2);
         max.iterate(list);
         assertFalse(max.hasLess());
+        assertEquals(0, max.getRemaining());
 
         max = new HasLessThan<Integer>(2);
         max.iterate(empty_list);
         assertTrue(max.hasLess());
+        assertEquals(2, max.getRemaining());
 
         max = new HasLessThan<Integer>(2);
         max = max.iterate(list);
@@ -48,6 +52,7 @@ public class HasLessThanTest extends TestCase {
         // HasLessThan reached total therefore returned object should be the same
         assertTrue(max == max2);
         assertFalse(max.hasLess());
+        assertEquals(0, max.getRemaining());
 
         max = new HasLessThan<Integer>(2);
         max.iterate(list);

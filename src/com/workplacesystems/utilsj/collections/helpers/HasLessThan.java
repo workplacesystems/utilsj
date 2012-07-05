@@ -67,4 +67,15 @@ public class HasLessThan<T> extends IterativeCallback<T, HasLessThan<T>>
             throw new UtilsjException("HasLessThan.hasLess() called without having been used");
         return count < total;
     }
+    
+    /**
+     * Returns 0 if the total has been reached, otherwise total - count.
+     * @throws QueujException if the iterative callback has not been used yet
+     */
+    public int getRemaining() throws UtilsjException
+    {
+        if (!hasBeenUsed() && !used_without_iteration)
+            throw new UtilsjException("HasLessThan.hasLess() called without having been used");
+        return count < total ? total - count : 0;
+    }
 }
