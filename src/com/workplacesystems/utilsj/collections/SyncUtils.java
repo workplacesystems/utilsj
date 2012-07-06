@@ -19,6 +19,7 @@ package com.workplacesystems.utilsj.collections;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -27,6 +28,7 @@ import com.workplacesystems.utilsj.Callback;
 import com.workplacesystems.utilsj.Condition;
 import com.workplacesystems.utilsj.UtilsjException;
 import com.workplacesystems.utilsj.collections.decorators.SynchronizedDecorator;
+import java.util.Set;
 
 /**
  *
@@ -173,6 +175,7 @@ public abstract class SyncUtils
                     if (!locked.isEmpty())
                         throw new IllegalStateException("lock already called");
 
+                    Set<Object> attempted = new HashSet<Object>();
                     boolean all_locked = false;
                     while (!all_locked)
                     {
@@ -180,10 +183,19 @@ public abstract class SyncUtils
 
                         for (Object mutex: objects_to_lock)
                         {
-                            if (tryLock(lockType, mutex))
+                            // Only honour fair sync policy on first attempt for this mutex. Subsequent attempts
+                            // have already waited for our fair turn in waitForLock.
+                            if (tryLock(lockType, mutex, !attempted.contains(mutex))) {
+                                // Add this mutex as attempted.
+                                attempted.add(mutex);
+
                                 locked.add(mutex);
+                            }
                             else
                             {
+                                // Add this mutex as attempted.
+                                attempted.add(mutex);
+
                                 unlock(lockType, false);
                                 all_locked = false;
                                 /*try
@@ -260,7 +272,7 @@ public abstract class SyncUtils
 
         abstract void waitForLock(LockType lockType, Object mutex);
 
-        abstract boolean tryLock(LockType lockType, Object mutex);
+        abstract boolean tryLock(LockType lockType, Object mutex, boolean honourFairMode);
 
         abstract void lock(LockType lockType, Object mutex);
 

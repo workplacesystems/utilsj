@@ -158,7 +158,7 @@ class SyncUtilsReentrant extends SyncUtilsLegacy
         }
 
         @Override
-        boolean tryLock(LockType lockType, Object mutex)
+        boolean tryLock(LockType lockType, Object mutex, boolean honourFairMode)
         {
             ReentrantReadWriteLock lock = (ReentrantReadWriteLock)mutex;
             switch (lockType)

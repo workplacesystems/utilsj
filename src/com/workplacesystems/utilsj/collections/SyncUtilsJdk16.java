@@ -300,7 +300,7 @@ class SyncUtilsJdk16 extends SyncUtilsReentrant
         }
 
         @Override
-        boolean tryLock(LockType lockType, Object mutex)
+        boolean tryLock(LockType lockType, Object mutex, boolean honourFairMode)
         {
             ReentrantReadWriteLock lock = (ReentrantReadWriteLock)mutex;
             boolean interrupted = false;
@@ -313,8 +313,14 @@ class SyncUtilsJdk16 extends SyncUtilsReentrant
 
                     while (true) {
                         try {
-                            // Use tryLock(long timeout, TimeUnit unit) with wait time of 0 instead of tryLock() to honour the fairness policy
-                            return lock.writeLock().tryLock(0, TimeUnit.SECONDS);
+                            if (honourFairMode) {
+                                // Use tryLock(long timeout, TimeUnit unit) with wait time of 0 instead of tryLock() to honour the fairness policy
+                                return lock.writeLock().tryLock(0, TimeUnit.SECONDS);
+                            }
+                            else {
+                                // Barge the lock
+                                return lock.writeLock().tryLock();
+                            }
                         }
                         catch (InterruptedException ie) {
                             interrupted = true;
@@ -324,8 +330,14 @@ class SyncUtilsJdk16 extends SyncUtilsReentrant
                 case READ:
                     while (true) {
                         try {
-                            // Use tryLock(long timeout, TimeUnit unit) with wait time of 0 instead of tryLock() to honour the fairness policy
-                            return lock.readLock().tryLock(0, TimeUnit.SECONDS);
+                            if (honourFairMode) {
+                                // Use tryLock(long timeout, TimeUnit unit) with wait time of 0 instead of tryLock() to honour the fairness policy
+                                return lock.readLock().tryLock(0, TimeUnit.SECONDS);
+                            }
+                            else {
+                                // Barge the lock
+                                return lock.readLock().tryLock();
+                            }
                         }
                         catch (InterruptedException ie) {
                             interrupted = true;
