@@ -376,6 +376,16 @@ class SyncUtilsReentrant extends SyncUtilsLegacy
                 write_mutex.unlock(LockType.WRITE);
                 write_lock = false;
             }
+            else
+            {
+                // Don't need the write mutex for read anymore
+                // so swap to holding the read mutex for read
+                read_mutex.lock(LockType.READ);
+                read_lock = true;
+                
+                write_mutex.unlock(LockType.READ);
+                read_lock_on_write_mutex = false;
+            }
 
             return read_callback.action();
         }
