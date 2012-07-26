@@ -341,7 +341,6 @@ class SyncUtilsReentrant extends SyncUtilsLegacy
             return super.synchronizeConditionalWriteThenReadImpl(write_mutex, write_condition, write_callback, read_mutex, read_callback);
         }
 
-        boolean read_lock_on_write_mutex = false;
         boolean read_lock = false;
         boolean write_lock = false;
 
@@ -352,14 +351,14 @@ class SyncUtilsReentrant extends SyncUtilsLegacy
                 throw new IllegalStateException("Lock cannot be upgraded from read to write");
 
             // First take the read lock
-            write_mutex.lock(LockType.READ);
-            read_lock_on_write_mutex = true;
+            read_mutex.lock(LockType.READ);
+            read_lock = true;
 
             // Check whether the write condition is true
             if (write_condition.isTrue(read_hold_count))
             {
-                write_mutex.unlock(LockType.READ, false);
-                read_lock_on_write_mutex = false;
+                read_mutex.unlock(LockType.READ, false);
+                read_lock = false;
 
                 // At this point there is no lock and therefore the write condition maybe altered
                 write_mutex.lock(LockType.WRITE);
@@ -376,16 +375,6 @@ class SyncUtilsReentrant extends SyncUtilsLegacy
                 write_mutex.unlock(LockType.WRITE);
                 write_lock = false;
             }
-            else
-            {
-                // Don't need the write mutex for read anymore
-                // so swap to holding the read mutex for read
-                read_mutex.lock(LockType.READ);
-                read_lock = true;
-                
-                write_mutex.unlock(LockType.READ);
-                read_lock_on_write_mutex = false;
-            }
 
             return read_callback.action();
         }
@@ -393,9 +382,6 @@ class SyncUtilsReentrant extends SyncUtilsLegacy
         {
             if (write_lock)
                 write_mutex.unlock(LockType.WRITE);
-
-            if (read_lock_on_write_mutex)
-                write_mutex.unlock(LockType.READ);
 
             if (read_lock)
                 read_mutex.unlock(LockType.READ);
