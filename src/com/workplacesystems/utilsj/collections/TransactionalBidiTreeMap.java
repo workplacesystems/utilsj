@@ -558,6 +558,96 @@ public class TransactionalBidiTreeMap<K,V> extends AbstractMap<K,V> implements T
     }
 
     /**
+     * Returns a set view of the mappings contained in this map. Each
+     * element in the returned set is a Map.Entry. The set is backed
+     * by the map, so changes to the map are reflected in the set, and
+     * vice-versa.  If the map is modified while an iteration over the
+     * set is in progress, the results of the iteration are
+     * undefined. The set supports element removal, which removes the
+     * corresponding mapping from the map, via the Iterator.remove,
+     * Set.remove, removeAll, retainAll and clear operations.  It does
+     * not support the add or addAll operations.<p>
+     *
+     * The difference between this method and entrySet is that
+     * entrySet's iterator() method returns an iterator that iterates
+     * over the mappings in ascending order by key. This method's
+     * iterator method iterates over the mappings in descending order
+     * by value.
+     *
+     * @return a set view of the mappings contained in this map.
+     */
+    public FilterableSet<Entry<K,V>> entrySetByValueDescending() {
+
+        return new AbstractFilterableSet<Entry<K,V>>() {
+
+            @Override
+            public Iterator<Entry<K,V>> iterator() {
+
+                return new TransactionalBidiTreeMapDescendingIterator<Entry<K,V>>(VALUE) {
+
+                    @Override
+                    protected Entry<K,V> doGetNext() {
+                        return lastReturnedNode;
+                    }
+                };
+            }
+
+            @Override
+            public boolean contains(Object o) {
+
+                if (!(o instanceof Map.Entry)) {
+                    return false;
+                }
+
+                Map.Entry<K,V> entry = (Map.Entry<K,V>) o;
+                Object         key   = entry.getKey();
+                Node<K,V>      node  = lookupValid(entry.getValue(),
+                                         VALUE,
+                                         getCurrentThreadId());
+
+                return (node!=null) && node.getData(KEY).equals(key);
+            }
+
+            @Override
+            public boolean remove(Object o) {
+
+                if (!(o instanceof Map.Entry)) {
+                    return false;
+                }
+
+                String thread_id = getCurrentThreadId();
+
+                Map.Entry<K,V> entry = (Map.Entry<K,V>) o;
+                Object         key   = entry.getKey();
+                Node<K,V>      node  = lookupValid(entry.getValue(),
+                                         VALUE,
+                                         thread_id);
+
+                if ((node!=null) && node.getData(KEY).equals(key)) {
+                    if (auto_commit || node.is(Node.ADDED, thread_id))
+                        doRedBlackDelete(node);
+                    else
+                        node.setStatus(Node.DELETED, thread_id);
+
+                    return true;
+                }
+
+                return false;
+            }
+
+            @Override
+            public int size() {
+                return TransactionalBidiTreeMap.this.size();
+            }
+
+            @Override
+            public void clear() {
+                TransactionalBidiTreeMap.this.clear();
+            }
+        };
+    }
+
+    /**
      * Returns a set view of the keys contained in this map.  The set
      * is backed by the map, so changes to the map are reflected in
      * the set, and vice-versa. If the map is modified while an
@@ -636,7 +726,7 @@ public class TransactionalBidiTreeMap<K,V> extends AbstractMap<K,V> implements T
      * The difference between this method and values is that values's
      * iterator() method returns an iterator that iterates over the
      * values in ascending order by key. This method's iterator method
-     * iterates over the values in ascending order by key.
+     * iterates over the values in ascending order by value.
      *
      * @return a collection view of the values contained in this map.
      */
@@ -702,6 +792,81 @@ public class TransactionalBidiTreeMap<K,V> extends AbstractMap<K,V> implements T
         return collectionOfValuesByValue;
     }
 
+    /**
+     * Returns a collection view of the values contained in this
+     * map. The collection is backed by the map, so changes to the map
+     * are reflected in the collection, and vice-versa. If the map is
+     * modified while an iteration over the collection is in progress,
+     * the results of the iteration are undefined. The collection
+     * supports element removal, which removes the corresponding
+     * mapping from the map, via the Iterator.remove,
+     * Collection.remove, removeAll, retainAll and clear operations.
+     * It does not support the add or addAll operations.<p>
+     *
+     * The difference between this method and values is that values's
+     * iterator() method returns an iterator that iterates over the
+     * values in ascending order by key. This method's iterator method
+     * iterates over the values in descending order by value.
+     *
+     * @return a collection view of the values contained in this map.
+     */
+    public FilterableCollection<V> valuesByValueDescending() {
+
+        return new AbstractFilterableCollection<V>() {
+
+            @Override
+            public Iterator<V> iterator() {
+
+                return new TransactionalBidiTreeMapDescendingIterator<V>(VALUE) {
+
+                    @Override
+                    protected V doGetNext() {
+                        return (V)lastReturnedNode.getData(VALUE);
+                    }
+                };
+            }
+
+            @Override
+            public int size() {
+                return TransactionalBidiTreeMap.this.size();
+            }
+
+            @Override
+            public boolean contains(Object o) {
+                return containsValue(o);
+            }
+
+            @Override
+            public boolean remove(Object o) {
+
+                int oldnodeCount = nodeCount;
+
+                removeValue(o);
+
+                return nodeCount != oldnodeCount;
+            }
+
+            @Override
+            public boolean removeAll(Collection<?> c) {
+
+                boolean     modified = false;
+                Iterator<?> iter     = c.iterator();
+
+                while (iter.hasNext()) {
+                    if (removeValue(iter.next()) != null) {
+                        modified = true;
+                    }
+                }
+
+                return modified;
+            }
+
+            @Override
+            public void clear() {
+                TransactionalBidiTreeMap.this.clear();
+            }
+        };
+    }
     
 
     /**
@@ -899,7 +1064,7 @@ public class TransactionalBidiTreeMap<K,V> extends AbstractMap<K,V> implements T
      */
     private Node<K,V> nextGreater(final Node<K,V> node, final int index) {
 
-        Node<K,V> rval = null;
+        Node<K,V> rval;
 
         if (node == null) {
             rval = null;
@@ -940,7 +1105,7 @@ public class TransactionalBidiTreeMap<K,V> extends AbstractMap<K,V> implements T
      */
     private Node<K,V> nextSmaller(final Node<K,V> node, final int index) {
 
-        Node<K,V> lval = null;
+        Node<K,V> lval;
 
         if (node == null) {
             lval = null;
@@ -2908,104 +3073,141 @@ public class TransactionalBidiTreeMap<K,V> extends AbstractMap<K,V> implements T
             return entrySet[VALUE];
         }
         
-        public FilterableSet<K> keySetByValue() {
-	    return new AbstractFilterableSet<K>() {
-		@Override
-        public Iterator<K> iterator() {
-		    return new Iterator<K>() {
-			private Iterator<Entry<K,V>> i = entrySetByValue().iterator();
-
-			public boolean hasNext() {
-			    return i.hasNext();
-			}
-
-			public K next() {
-			    return i.next().getKey();
-			}
-
-			public void remove() {
-			    i.remove();
-			}
-                    };
-		}
-
-		@Override
-        public int size() {
-		    return TransactionalBidiTreeMap.SubMap.this.size();
-		}
-
-		@Override
-        public boolean contains(Object k) {
-		    return TransactionalBidiTreeMap.SubMap.this.containsKey(k);
-		}
-	    };
+        public FilterableSet<Entry<K,V>> entrySetByValueDescending() {
+            return new EntrySetViewDescending(VALUE);
         }
+        
+        public FilterableSet<K> keySetByValue() {
+            return new AbstractFilterableSet<K>() {
+                @Override
+                public Iterator<K> iterator() {
+                    return new Iterator<K>() {
+                        private Iterator<Entry<K,V>> i = entrySetByValue().iterator();
 
-        public FilterableCollection<V> valuesByValue() {
-	    return new AbstractFilterableCollection<V>() {
-		@Override
-        public Iterator<V> iterator() {
-		    return new Iterator<V>() {
-			private Iterator<Entry<K,V>> i = entrySetByValue().iterator();
+                        public boolean hasNext() {
+                            return i.hasNext();
+                        }
 
-			public boolean hasNext() {
-			    return i.hasNext();
-			}
+                        public K next() {
+                            return i.next().getKey();
+                        }
 
-			public V next() {
-			    return i.next().getValue();
-			}
-
-			public void remove() {
-			    i.remove();
-			}
+                        public void remove() {
+                            i.remove();
+                        }
                     };
                 }
 
-		@Override
-        public int size() {
-		    return TransactionalBidiTreeMap.SubMap.this.size();
-		}
+                @Override
+                public int size() {
+                    return TransactionalBidiTreeMap.SubMap.this.size();
+                }
 
-		@Override
-        public boolean contains(Object v) {
-		    return TransactionalBidiTreeMap.SubMap.this.containsValue(v);
-		}
-	    };
+                @Override
+                public boolean contains(Object k) {
+                    return TransactionalBidiTreeMap.SubMap.this.containsKey(k);
+                }
+            };
+        }
+
+        public FilterableCollection<V> valuesByValue() {
+            return new AbstractFilterableCollection<V>() {
+                @Override
+                public Iterator<V> iterator() {
+                    return new Iterator<V>() {
+                        private Iterator<Entry<K,V>> i = entrySetByValue().iterator();
+
+                        public boolean hasNext() {
+                            return i.hasNext();
+                        }
+
+                        public V next() {
+                            return i.next().getValue();
+                        }
+
+                        public void remove() {
+                            i.remove();
+                        }
+                    };
+                }
+
+                @Override
+                public int size() {
+                    return TransactionalBidiTreeMap.SubMap.this.size();
+                }
+
+                @Override
+                public boolean contains(Object v) {
+                    return TransactionalBidiTreeMap.SubMap.this.containsValue(v);
+                }
+            };
+        }
+
+        public FilterableCollection<V> valuesByValueDescending() {
+            return new AbstractFilterableCollection<V>() {
+                @Override
+                public Iterator<V> iterator() {
+                    return new Iterator<V>() {
+                        private Iterator<Entry<K,V>> i = entrySetByValueDescending().iterator();
+
+                        public boolean hasNext() {
+                            return i.hasNext();
+                        }
+
+                        public V next() {
+                            return i.next().getValue();
+                        }
+
+                        public void remove() {
+                            i.remove();
+                        }
+                    };
+                }
+
+                @Override
+                public int size() {
+                    return TransactionalBidiTreeMap.SubMap.this.size();
+                }
+
+                @Override
+                public boolean contains(Object v) {
+                    return TransactionalBidiTreeMap.SubMap.this.containsValue(v);
+                }
+            };
         }
 
         @Override
         public Collection<V> values() {
-	    return new AbstractFilterableCollection<V>() {
-		@Override
-        public Iterator<V> iterator() {
-		    return new Iterator<V>() {
-			private Iterator<Entry<K,V>> i = entrySet().iterator();
+            return new AbstractFilterableCollection<V>() {
+                @Override
+                public Iterator<V> iterator() {
+                    return new Iterator<V>() {
+                        private Iterator<Entry<K,V>> i = entrySet().iterator();
 
-			public boolean hasNext() {
-			    return i.hasNext();
-			}
+                        public boolean hasNext() {
+                            return i.hasNext();
+                        }
 
-			public V next() {
-			    return i.next().getValue();
-			}
+                        public V next() {
+                            return i.next().getValue();
+                        }
 
-			public void remove() {
-			    i.remove();
-			}
+                        public void remove() {
+                            i.remove();
+                        }
                     };
                 }
 
-		@Override
-        public int size() {
-		    return TransactionalBidiTreeMap.SubMap.this.size();
-		}
+                @Override
+                public int size() {
+                    return TransactionalBidiTreeMap.SubMap.this.size();
+                }
 
-		@Override
-        public boolean contains(Object v) {
-		    return TransactionalBidiTreeMap.SubMap.this.containsValue(v);
-		}
-	    };
+                @Override
+                public boolean contains(Object v) {
+                    return TransactionalBidiTreeMap.SubMap.this.containsValue(v);
+                }
+            };
         }
 
         public SortedMap<K,V> subMap(K fromKey, K toKey) {
@@ -3057,7 +3259,7 @@ public class TransactionalBidiTreeMap<K,V> extends AbstractMap<K,V> implements T
          *******************************************************/
         private class EntrySetView extends AbstractFilterableSet<Entry<K,V>>
         {       
-            private transient int size = -1, sizeModCount, type;
+            transient int size = -1, sizeModCount, type;
 
             private EntrySetView(int type) 
             {
@@ -3135,6 +3337,25 @@ public class TransactionalBidiTreeMap<K,V> extends AbstractMap<K,V> implements T
                 };
             }
         }
+        
+        private class EntrySetViewDescending extends EntrySetView
+        {       
+
+            public EntrySetViewDescending(int type) {
+                super(type);
+            }
+            
+             @Override
+            public Iterator iterator() 
+            {
+                return new SubMapEntryDescendingIterator(type == KEY ?
+                        TransactionalBidiTreeMap.SubMap.this.lastNodeByKey() :
+                        TransactionalBidiTreeMap.SubMap.this.lastNodeByValue(),
+                        TransactionalBidiTreeMap.SubMap.this.restriction,
+                        type) {
+                };
+            }
+       }
     }
 
     /* **********  END  implementation of Map ********** */
@@ -3272,6 +3493,138 @@ public class TransactionalBidiTreeMap<K,V> extends AbstractMap<K,V> implements T
         /* **********  END  implementation of Iterator ********** */
     }    // end private abstract class TransactionalBidiTreeMapIterator
 
+    private abstract class TransactionalBidiTreeMapDescendingIterator<E> implements Iterator<E> {
+
+        private int    expectedModifications;
+        protected Node<K,V> lastReturnedNode;
+        private Node<K,V>   nextNode;
+        protected int  iteratorType;
+
+        /**
+         * Constructor
+         *
+         * @param type
+         */
+        TransactionalBidiTreeMapDescendingIterator(final int type) {
+
+            iteratorType          = type;
+            expectedModifications = TransactionalBidiTreeMap.this.modifications;
+            lastReturnedNode      = null;
+            nextNode              = mostNode(rootNode[iteratorType],
+                                              iteratorType);
+            nextNode = getNextValidNode(nextNode, getCurrentThreadId());
+        }
+
+        /**
+         * Constructor
+         *
+         * @param type
+         */
+        TransactionalBidiTreeMapDescendingIterator(final Node<K,V> startNode, final int type) {
+
+            iteratorType          = type;
+            expectedModifications = TransactionalBidiTreeMap.this.modifications;
+            lastReturnedNode      = null;
+            nextNode              = startNode;
+            nextNode = getNextValidNode(nextNode, getCurrentThreadId());
+        }
+
+        /**
+         * @return 'next', whatever that means for a given kind of
+         *         TransactionalBidiTreeMapIterator
+         */
+        protected abstract E doGetNext();
+
+        /* ********** START implementation of Iterator ********** */
+
+        /**
+         * @return true if the iterator has more elements.
+         */
+        public final boolean hasNext() {
+            return nextNode != null;
+        }
+
+        /**
+         * @return the next element in the iteration.
+         *
+         * @throws NoSuchElementException if iteration has no more
+         *                                   elements.
+         * @throws ConcurrentModificationException if the
+         *                                            TransactionalBidiTreeMap is
+         *                                            modified behind
+         *                                            the iterator's
+         *                                            back
+         */
+        public final E next()
+                throws NoSuchElementException,
+                       ConcurrentModificationException {
+
+            if (nextNode == null) {
+                throw new NoSuchElementException();
+            }
+
+            if (modifications != expectedModifications) {
+                throw new ConcurrentModificationException();
+            }
+
+            lastReturnedNode = nextNode;
+            nextNode = nextSmaller(nextNode, iteratorType);
+            nextNode = getNextValidNode(nextNode, getCurrentThreadId());
+
+            return doGetNext();
+        }
+        
+        protected Node<K,V> getNextValidNode(Node<K,V> node, String thread_id) {
+            if (auto_commit)
+                return node;
+            
+            return leastValidNode(node, iteratorType, thread_id);
+        }
+
+        /**
+         * Removes from the underlying collection the last element
+         * returned by the iterator. This method can be called only
+         * once per call to next. The behavior of an iterator is
+         * unspecified if the underlying collection is modified while
+         * the iteration is in progress in any way other than by
+         * calling this method.
+         *
+         * @throws IllegalStateException if the next method has not
+         *                                  yet been called, or the
+         *                                  remove method has already
+         *                                  been called after the last
+         *                                  call to the next method.
+         * @throws ConcurrentModificationException if the
+         *                                            TransactionalBidiTreeMap is
+         *                                            modified behind
+         *                                            the iterator's
+         *                                            back
+         */
+        public final void remove()
+                throws IllegalStateException,
+                       ConcurrentModificationException {
+
+            if (lastReturnedNode == null) {
+                throw new IllegalStateException();
+            }
+
+            if (modifications != expectedModifications) {
+                throw new ConcurrentModificationException();
+            }
+
+            String thread_id = getCurrentThreadId();
+            if (auto_commit || lastReturnedNode.is(Node.ADDED, thread_id))
+            {
+                doRedBlackDelete(lastReturnedNode);
+                expectedModifications++;
+            }
+            else
+                lastReturnedNode.setStatus(Node.DELETED, thread_id);
+
+            lastReturnedNode = null;
+        }
+
+    }
 
     private class SubMapEntryIterator extends TransactionalBidiTreeMapIterator<Entry<K,V>> {
 
@@ -3291,6 +3644,35 @@ public class TransactionalBidiTreeMap<K,V> extends AbstractMap<K,V> implements T
                     !restriction.inRangeSingle(node.getValue(), VALUE)))
             {
                 node = nextGreater(node, iteratorType);
+                node = super.getNextValidNode(node, thread_id);
+            }
+            return node;
+        }
+
+        @Override
+        protected Entry<K,V> doGetNext() {
+            return lastReturnedNode;
+        }
+    }
+
+    private class SubMapEntryDescendingIterator extends TransactionalBidiTreeMapDescendingIterator<Entry<K,V>> {
+
+        private TransactionalBidiTreeMap<K,V>.SubMapRestriction restriction;
+
+        SubMapEntryDescendingIterator(Node<K,V> first, TransactionalBidiTreeMap<K,V>.SubMapRestriction restriction, int type) {
+            super(first, type);
+            this.restriction = restriction;
+        }
+
+        @Override
+        protected Node<K,V> getNextValidNode(Node<K,V> node, final String thread_id) {
+            if (restriction == null)
+                return super.getNextValidNode(node, thread_id);
+            while (node != null && (!validNode(node, thread_id) ||
+                    !restriction.inRangeSingle(node.getKey(), KEY) ||
+                    !restriction.inRangeSingle(node.getValue(), VALUE)))
+            {
+                node = nextSmaller(node, iteratorType);
                 node = super.getNextValidNode(node, thread_id);
             }
             return node;

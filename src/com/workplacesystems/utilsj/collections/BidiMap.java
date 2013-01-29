@@ -32,5 +32,9 @@ public interface BidiMap<K,V> extends Map<K,V>
     
     FilterableCollection<V> valuesByValue();
     
+    FilterableCollection<V> valuesByValueDescending();
+    
     FilterableSet<Map.Entry<K,V>> entrySetByValue();
+
+    FilterableSet<Map.Entry<K,V>> entrySetByValueDescending();
 }

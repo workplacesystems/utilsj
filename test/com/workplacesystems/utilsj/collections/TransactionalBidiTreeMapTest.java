@@ -265,6 +265,12 @@ public class TransactionalBidiTreeMapTest extends TestCase {
         assertEquals(key, entry.getKey());
         assertEquals(value, entry.getValue());
     }
+    private void checkNextIteration(Iterator i, Object expected_value){
+        Object value;
+        assertEquals(true, i.hasNext());
+        value = i.next();
+        assertEquals(expected_value,value);
+    }
     /*
      *Test iterator returned by TransactionalBidiTreeMap
      */
@@ -290,6 +296,37 @@ public class TransactionalBidiTreeMapTest extends TestCase {
         checkNextIteration(i, new Integer(1), "D");
         assertEquals(false, i.hasNext());
     }
+    public void testTransactionalBidiTreeMap_entrySetByValueDescendingIterator(){
+        TransactionalBidiTreeMap tbtm = GetDefault();
+        Set s = tbtm.entrySetByValueDescending();
+		assertEquals(4, s.size());
+        Iterator i = s.iterator();
+        checkNextIteration(i, new Integer(1), "D");
+        checkNextIteration(i, new Integer(2), "C");
+        checkNextIteration(i, new Integer(4), "B");
+        checkNextIteration(i, new Integer(3), "A");
+        assertEquals(false, i.hasNext());
+    }
+    public void testTransactionalBidiTreeMap_valuesByValueIterator(){
+        TransactionalBidiTreeMap tbtm = GetDefault();
+        FilterableCollection c = tbtm.valuesByValue();
+        Iterator i = c.iterator();
+        checkNextIteration(i, "A");
+        checkNextIteration(i, "B");
+        checkNextIteration(i, "C");
+        checkNextIteration(i, "D");
+        assertEquals(false, i.hasNext());
+    }
+    public void testTransactionalBidiTreeMap_valuesByValueDescendingIterator(){
+        TransactionalBidiTreeMap tbtm = GetDefault();
+        FilterableCollection c = tbtm.valuesByValueDescending();
+        Iterator i = c.iterator();
+        checkNextIteration(i, "D");
+        checkNextIteration(i, "C");
+        checkNextIteration(i, "B");
+        checkNextIteration(i, "A");
+        assertEquals(false, i.hasNext());
+    }
 
     public void testSortedBidiMap_entrySetIterator(){
         TransactionalBidiTreeMap tbtm = GetDefault();
@@ -311,6 +348,26 @@ public class TransactionalBidiTreeMapTest extends TestCase {
         checkNextIteration(i, new Integer(4), "B");
         checkNextIteration(i, new Integer(2), "C");
         checkNextIteration(i, new Integer(1), "D");
+        assertEquals(false, i.hasNext());
+    }
+    public void testSortedBidiMap_entrySetByValueDescendingIterator(){
+        TransactionalBidiTreeMap tbtm = GetDefault();
+        SortedBidiMap sbm = tbtm.tailMapByValue("B");
+        Set s = sbm.entrySetByValueDescending();
+		assertEquals(3, s.size());
+        Iterator i = s.iterator();
+        checkNextIteration(i, new Integer(1), "D");
+        checkNextIteration(i, new Integer(2), "C");
+        checkNextIteration(i, new Integer(4), "B");
+        assertEquals(false, i.hasNext());
+        
+        sbm = tbtm.headMapByValue("D");
+        s = sbm.entrySetByValueDescending();
+		assertEquals(3, s.size());
+        i = s.iterator();
+        checkNextIteration(i, new Integer(2), "C");
+        checkNextIteration(i, new Integer(4), "B");
+        checkNextIteration(i, new Integer(3), "A");
         assertEquals(false, i.hasNext());
     }
     
@@ -490,6 +547,16 @@ public class TransactionalBidiTreeMapTest extends TestCase {
         data = (TestData)((Map.Entry)i.next()).getValue();
         assertEquals(data, three);
         
+        s = tbtm.entrySetByValueDescending();
+		assertEquals(3, s.size());
+        i = s.iterator();
+        data = (TestData)((Map.Entry)i.next()).getValue();
+        assertEquals(data, three);
+        data = (TestData)((Map.Entry)i.next()).getValue();
+        assertEquals(data, one);
+        data = (TestData)((Map.Entry)i.next()).getValue();
+        assertEquals(data, two);
+
         assertEquals(false, i.hasNext());
         
         assertTrue(tbtm.containsValue(two));
@@ -564,6 +631,15 @@ public class TransactionalBidiTreeMapTest extends TestCase {
                 checkNextIteration(i, new Integer(3), "G");
                 assertEquals(false, i.hasNext());
 
+                s = tbtm.entrySetByValueDescending();
+				assertEquals(4, s.size());
+                i = s.iterator();
+                checkNextIteration(i, new Integer(3), "G");
+                checkNextIteration(i, new Integer(0), "E");
+                checkNextIteration(i, new Integer(1), "D");
+                checkNextIteration(i, new Integer(2), "C");
+                assertEquals(false, i.hasNext());
+
                 sbm = tbtm.tailMapByValue("C");
                 s = sbm.entrySet();
 				assertEquals(4, s.size());
@@ -582,6 +658,16 @@ public class TransactionalBidiTreeMapTest extends TestCase {
                 checkNextIteration(i, new Integer(1), "D");
                 checkNextIteration(i, new Integer(0), "E");
                 checkNextIteration(i, new Integer(3), "G");
+                assertEquals(false, i.hasNext());
+
+                sbm = tbtm.tailMapByValue("B");
+                s = sbm.entrySetByValueDescending();
+				assertEquals(4, s.size());
+                i = s.iterator();
+                checkNextIteration(i, new Integer(3), "G");
+                checkNextIteration(i, new Integer(0), "E");
+                checkNextIteration(i, new Integer(1), "D");
+                checkNextIteration(i, new Integer(2), "C");
                 assertEquals(false, i.hasNext());
 
                 FilterableMap fm = tbtm.filteredMap(new Filter() {
@@ -621,7 +707,7 @@ public class TransactionalBidiTreeMapTest extends TestCase {
 
         thread.start();
         
-        while (running)
+        while (running && thread.isAlive())
         {
             try
             {
@@ -674,6 +760,15 @@ public class TransactionalBidiTreeMapTest extends TestCase {
         checkNextIteration(i, new Integer(1), "D");
         assertEquals(false, i.hasNext());
 
+        s = tbtm.entrySetByValueDescending();
+		assertEquals(4, s.size());
+        i = s.iterator();
+        checkNextIteration(i, new Integer(1), "D");
+        checkNextIteration(i, new Integer(2), "C");
+        checkNextIteration(i, new Integer(4), "B");
+        checkNextIteration(i, new Integer(3), "A");
+        assertEquals(false, i.hasNext());
+
         sbm = tbtm.tailMapByValue("C");
         s = sbm.entrySet();
 		assertEquals(2, s.size());
@@ -689,6 +784,15 @@ public class TransactionalBidiTreeMapTest extends TestCase {
         checkNextIteration(i, new Integer(4), "B");
         checkNextIteration(i, new Integer(2), "C");
         checkNextIteration(i, new Integer(1), "D");
+        assertEquals(false, i.hasNext());
+
+        sbm = tbtm.tailMapByValue("B");
+        s = sbm.entrySetByValueDescending();
+		assertEquals(3, s.size());
+        i = s.iterator();
+        checkNextIteration(i, new Integer(1), "D");
+        checkNextIteration(i, new Integer(2), "C");
+        checkNextIteration(i, new Integer(4), "B");
         assertEquals(false, i.hasNext());
 
         FilterableMap fm = tbtm.filteredMap(new Filter() {
@@ -709,7 +813,7 @@ public class TransactionalBidiTreeMapTest extends TestCase {
 
         inner_running = false;
         thread.interrupt();
-        while (running)
+        while (running && thread.isAlive())
         {
             try
             {
@@ -745,6 +849,15 @@ public class TransactionalBidiTreeMapTest extends TestCase {
         checkNextIteration(i, new Integer(3), "G");
         assertEquals(false, i.hasNext());
 
+        s = tbtm.entrySetByValueDescending();
+		assertEquals(4, s.size());
+        i = s.iterator();
+        checkNextIteration(i, new Integer(3), "G");
+        checkNextIteration(i, new Integer(0), "E");
+        checkNextIteration(i, new Integer(1), "D");
+        checkNextIteration(i, new Integer(2), "C");
+        assertEquals(false, i.hasNext());
+
         sbm = tbtm.tailMapByValue("C");
         s = sbm.entrySet();
 		assertEquals(4, s.size());
@@ -763,6 +876,16 @@ public class TransactionalBidiTreeMapTest extends TestCase {
         checkNextIteration(i, new Integer(1), "D");
         checkNextIteration(i, new Integer(0), "E");
         checkNextIteration(i, new Integer(3), "G");
+        assertEquals(false, i.hasNext());
+        
+        sbm = tbtm.tailMapByValue("B");
+        s = sbm.entrySetByValueDescending();
+		assertEquals(4, s.size());
+        i = s.iterator();
+        checkNextIteration(i, new Integer(3), "G");
+        checkNextIteration(i, new Integer(0), "E");
+        checkNextIteration(i, new Integer(1), "D");
+        checkNextIteration(i, new Integer(2), "C");
         assertEquals(false, i.hasNext());
         
         fm = tbtm.filteredMap(new Filter() {
@@ -824,6 +947,15 @@ public class TransactionalBidiTreeMapTest extends TestCase {
                 checkNextIteration(i, new Integer(3), "G");
                 assertEquals(false, i.hasNext());
 
+                s = tbtm.entrySetByValueDescending();
+				assertEquals(4, s.size());
+                i = s.iterator();
+                checkNextIteration(i, new Integer(3), "G");
+                checkNextIteration(i, new Integer(0), "E");
+                checkNextIteration(i, new Integer(1), "D");
+                checkNextIteration(i, new Integer(2), "C");
+                assertEquals(false, i.hasNext());
+
                 sbm = tbtm.tailMapByValue("C");
                 s = sbm.entrySet();
 				assertEquals(4, s.size());
@@ -842,6 +974,16 @@ public class TransactionalBidiTreeMapTest extends TestCase {
                 checkNextIteration(i, new Integer(1), "D");
                 checkNextIteration(i, new Integer(0), "E");
                 checkNextIteration(i, new Integer(3), "G");
+                assertEquals(false, i.hasNext());
+
+                sbm = tbtm.tailMapByValue("B");
+                s = sbm.entrySetByValueDescending();
+				assertEquals(4, s.size());
+                i = s.iterator();
+                checkNextIteration(i, new Integer(3), "G");
+                checkNextIteration(i, new Integer(0), "E");
+                checkNextIteration(i, new Integer(1), "D");
+                checkNextIteration(i, new Integer(2), "C");
                 assertEquals(false, i.hasNext());
 
                 FilterableMap fm = tbtm.filteredMap(new Filter() {
@@ -881,7 +1023,7 @@ public class TransactionalBidiTreeMapTest extends TestCase {
 
         thread.start();
         
-        while (running)
+        while (running && thread.isAlive())
         {
             try
             {
@@ -934,6 +1076,15 @@ public class TransactionalBidiTreeMapTest extends TestCase {
         checkNextIteration(i, new Integer(1), "D");
         assertEquals(false, i.hasNext());
 
+        s = tbtm.entrySetByValueDescending();
+		assertEquals(4, s.size());
+        i = s.iterator();
+        checkNextIteration(i, new Integer(1), "D");
+        checkNextIteration(i, new Integer(2), "C");
+        checkNextIteration(i, new Integer(4), "B");
+        checkNextIteration(i, new Integer(3), "A");
+        assertEquals(false, i.hasNext());
+
         sbm = tbtm.tailMapByValue("C");
         s = sbm.entrySet();
 		assertEquals(2, s.size());
@@ -949,6 +1100,15 @@ public class TransactionalBidiTreeMapTest extends TestCase {
         checkNextIteration(i, new Integer(4), "B");
         checkNextIteration(i, new Integer(2), "C");
         checkNextIteration(i, new Integer(1), "D");
+        assertEquals(false, i.hasNext());
+
+        sbm = tbtm.tailMapByValue("B");
+        s = sbm.entrySetByValueDescending();
+		assertEquals(3, s.size());
+        i = s.iterator();
+        checkNextIteration(i, new Integer(1), "D");
+        checkNextIteration(i, new Integer(2), "C");
+        checkNextIteration(i, new Integer(4), "B");
         assertEquals(false, i.hasNext());
 
         FilterableMap fm = tbtm.filteredMap(new Filter() {
@@ -969,7 +1129,7 @@ public class TransactionalBidiTreeMapTest extends TestCase {
 
         inner_running = false;
         thread.interrupt();
-        while (running)
+        while (running && thread.isAlive())
         {
             try
             {
@@ -1005,6 +1165,15 @@ public class TransactionalBidiTreeMapTest extends TestCase {
         checkNextIteration(i, new Integer(1), "D");
         assertEquals(false, i.hasNext());
 
+        s = tbtm.entrySetByValueDescending();
+		assertEquals(4, s.size());
+        i = s.iterator();
+        checkNextIteration(i, new Integer(1), "D");
+        checkNextIteration(i, new Integer(2), "C");
+        checkNextIteration(i, new Integer(4), "B");
+        checkNextIteration(i, new Integer(3), "A");
+        assertEquals(false, i.hasNext());
+
         sbm = tbtm.tailMapByValue("C");
         s = sbm.entrySet();
 		assertEquals(2, s.size());
@@ -1020,6 +1189,15 @@ public class TransactionalBidiTreeMapTest extends TestCase {
         checkNextIteration(i, new Integer(4), "B");
         checkNextIteration(i, new Integer(2), "C");
         checkNextIteration(i, new Integer(1), "D");
+        assertEquals(false, i.hasNext());
+
+        sbm = tbtm.tailMapByValue("B");
+        s = sbm.entrySetByValueDescending();
+		assertEquals(3, s.size());
+        i = s.iterator();
+        checkNextIteration(i, new Integer(1), "D");
+        checkNextIteration(i, new Integer(2), "C");
+        checkNextIteration(i, new Integer(4), "B");
         assertEquals(false, i.hasNext());
 
         fm = tbtm.filteredMap(new Filter() {
@@ -1083,7 +1261,7 @@ public class TransactionalBidiTreeMapTest extends TestCase {
 
 		thread.start();
         
-		while (running)
+		while (running && thread.isAlive())
 		{
 			try
 			{
@@ -1097,7 +1275,7 @@ public class TransactionalBidiTreeMapTest extends TestCase {
 
 		inner_running = false;
 		thread.interrupt();
-		while (running)
+		while (running && thread.isAlive())
 		{
 			try
 			{
@@ -2232,6 +2410,89 @@ public class TransactionalBidiTreeMapTest extends TestCase {
     }
 
     /**
+     * test entrySetByValueDescending() method
+     */
+    public void testEntrySetByValueDescending() {
+
+        testEntrySetByValueDescending((TransactionalBidiTreeMap) makeMap());
+
+        TransactionalBidiTreeMap m       = (TransactionalBidiTreeMap) makeMap();
+        LocalTestNode    nodes[] = makeLocalNodes();
+
+        for (int k = 0; k < nodes.length; k++) {
+            m.put(nodes[k].getKey(), nodes[k]);
+        }
+
+        testEntrySetByValueDescending(m);
+
+        m = (TransactionalBidiTreeMap) makeMap();
+
+        for (int k = 0; k < nodes.length; k++) {
+            m.put(nodes[k].getKey(), nodes[k]);
+        }
+
+        try {
+            ((Map.Entry) m.entrySetByValueDescending().iterator().next())
+                .setValue(new LocalTestNode(-1));
+            fail("Should have caught UnsupportedOperationException");
+        } catch (UnsupportedOperationException ignored) {}
+
+        int count = m.size();
+
+        for (Iterator iter = m.entrySetByValueDescending().iterator();
+                iter.hasNext(); ) {
+            iter.next();
+            iter.remove();
+
+            --count;
+
+            assertEquals(count, m.size());
+        }
+
+        assertTrue(m.isEmpty());
+
+        m = (TransactionalBidiTreeMap) makeMap();
+
+        Collection c1 = new LinkedList();
+
+        for (int k = 0; k < nodes.length; k++) {
+            m.put(nodes[k].getKey(), nodes[k]);
+            c1.add(nodes[k].getKey());
+        }
+
+        try {
+            m.entrySetByValueDescending().addAll(c1);
+            fail("should have caught exception of addAll()");
+        } catch (UnsupportedOperationException ignored) {}
+
+        m = (TransactionalBidiTreeMap) makeMap();
+
+        for (int k = 0; k < nodes.length; k++) {
+            m.put(nodes[k].getKey(), nodes[k]);
+        }
+
+        m.entrySetByValueDescending().clear();
+        assertEquals(0, m.size());
+
+        m = (TransactionalBidiTreeMap) makeMap();
+
+        for (int k = 0; k < nodes.length; k++) {
+            m.put(nodes[k].getKey(), nodes[k]);
+        }
+
+        int x = 1;
+
+        for (Iterator iter = m.entrySetByValueDescending().iterator();
+                iter.hasNext(); ) {
+            Map.Entry entry = (Map.Entry) iter.next();
+
+            assertSame(entry.getKey(), nodes[nodes.length - x].getKey());
+            assertSame(entry.getValue(), nodes[nodes.length - x]);
+
+            x++;
+        }
+    }
+    /**
      * test keySetByValue() method
      */
     public void testKeySetByValue() {
@@ -2423,8 +2684,7 @@ public class TransactionalBidiTreeMapTest extends TestCase {
 
         int count = m.size();
 
-        for (Iterator iter = m.valuesByValue().iterator(); iter.hasNext(); ) 
-{
+        for (Iterator iter = m.valuesByValue().iterator(); iter.hasNext(); ) {
             iter.next();
             iter.remove();
 
@@ -2560,6 +2820,169 @@ public class TransactionalBidiTreeMapTest extends TestCase {
         }
 
         m.valuesByValue().clear();
+        assertEquals(0, m.size());
+    }
+
+    /**
+     * test valuesByValueDescending() method
+     */
+    public void testValuesByValueDescending() {
+
+        testValuesByValueDescending((TransactionalBidiTreeMap) makeMap());
+
+        TransactionalBidiTreeMap m       = (TransactionalBidiTreeMap) makeMap();
+        LocalTestNode    nodes[] = makeLocalNodes();
+
+        for (int k = 0; k < nodes.length; k++) {
+            m.put(nodes[k].getKey(), nodes[k]);
+        }
+
+        testValuesByValueDescending(m);
+
+        m = (TransactionalBidiTreeMap) makeMap();
+
+        for (int k = 0; k < nodes.length; k++) {
+            m.put(nodes[k].getKey(), nodes[k]);
+        }
+
+        int count = m.size();
+
+        for (Iterator iter = m.valuesByValueDescending().iterator(); iter.hasNext(); ) {
+            iter.next();
+            iter.remove();
+
+            --count;
+
+            assertEquals(count, m.size());
+        }
+
+        assertTrue(m.isEmpty());
+
+        m = (TransactionalBidiTreeMap) makeMap();
+
+        for (int k = 0; k < nodes.length; k++) {
+            m.put(nodes[k].getKey(), nodes[k]);
+        }
+
+        count = m.size();
+
+        Collection s = m.valuesByValueDescending();
+
+        for (int k = 0; k < count; k++) {
+            assertTrue(s.remove(nodes[k]));
+            assertTrue(!s.contains(nodes[k]));
+            assertTrue(!m.containsKey(nodes[k].getKey()));
+            assertTrue(!m.containsValue(nodes[k]));
+        }
+
+        assertTrue(m.isEmpty());
+
+        m = (TransactionalBidiTreeMap) makeMap();
+
+        Collection c1 = new LinkedList();
+        Collection c2 = new LinkedList();
+
+        c2.add(new LocalTestNode(-123));
+
+        for (int k = 0; k < nodes.length; k++) {
+            m.put(nodes[k].getKey(), nodes[k]);
+            c1.add(nodes[k]);
+            c2.add(nodes[k]);
+        }
+
+        assertTrue(m.valuesByValueDescending().containsAll(c1));
+        assertTrue(!m.valuesByValueDescending().containsAll(c2));
+
+        m  = (TransactionalBidiTreeMap) makeMap();
+        c1 = new LinkedList();
+
+        for (int k = 0; k < nodes.length; k++) {
+            m.put(nodes[k].getKey(), nodes[k]);
+            c1.add(nodes[k]);
+        }
+
+        try {
+            m.valuesByValueDescending().addAll(c1);
+            fail("should have caught exception of addAll()");
+        } catch (UnsupportedOperationException ignored) {}
+
+        m  = (TransactionalBidiTreeMap) makeMap();
+        c1 = new LinkedList();
+
+        for (int k = 0; k < nodes.length; k++) {
+            m.put(nodes[k].getKey(), nodes[k]);
+            c1.add(nodes[k]);
+        }
+
+        assertTrue(!m.valuesByValueDescending().retainAll(c1));
+        assertEquals(nodes.length, m.size());
+
+        m  = (TransactionalBidiTreeMap) makeMap();
+        c1 = new LinkedList();
+
+        for (int k = 0; k < nodes.length; k++) {
+            m.put(nodes[k].getKey(), nodes[k]);
+
+            if (k % 2 == 1) {
+                c1.add(nodes[k]);
+            }
+        }
+
+        assertTrue(m.valuesByValueDescending().retainAll(c1));
+        assertEquals(nodes.length / 2, m.size());
+
+        m  = (TransactionalBidiTreeMap) makeMap();
+        c1 = new LinkedList();
+
+        for (int k = 0; k < nodes.length; k++) {
+            m.put(nodes[k].getKey(), nodes[k]);
+        }
+
+        assertTrue(m.valuesByValueDescending().retainAll(c1));
+        assertEquals(0, m.size());
+
+        m  = (TransactionalBidiTreeMap) makeMap();
+        c1 = new LinkedList();
+
+        for (int k = 0; k < nodes.length; k++) {
+            m.put(nodes[k].getKey(), nodes[k]);
+        }
+
+        assertTrue(!m.valuesByValueDescending().removeAll(c1));
+        assertEquals(nodes.length, m.size());
+
+        m  = (TransactionalBidiTreeMap) makeMap();
+        c1 = new LinkedList();
+
+        for (int k = 0; k < nodes.length; k++) {
+            m.put(nodes[k].getKey(), nodes[k]);
+
+            if (k % 2 == 0) {
+                c1.add(nodes[k]);
+            }
+        }
+
+        assertTrue(m.valuesByValueDescending().removeAll(c1));
+        assertEquals(nodes.length / 2, m.size());
+
+        m  = (TransactionalBidiTreeMap) makeMap();
+        c1 = new LinkedList();
+
+        for (int k = 0; k < nodes.length; k++) {
+            m.put(nodes[k].getKey(), nodes[k]);
+            c1.add(nodes[k]);
+        }
+
+        assertTrue(m.valuesByValueDescending().removeAll(c1));
+        assertEquals(0, m.size());
+
+        m = (TransactionalBidiTreeMap) makeMap();
+
+        for (int k = 0; k < nodes.length; k++) {
+            m.put(nodes[k].getKey(), nodes[k]);
+        }
+
+        m.valuesByValueDescending().clear();
         assertEquals(0, m.size());
     }
 
@@ -3543,6 +3966,185 @@ public class TransactionalBidiTreeMapTest extends TestCase {
         assertTrue(!hs.equals(s));
     }
 
+    private void testValuesByValueDescending(TransactionalBidiTreeMap m) {
+
+        Collection s = m.valuesByValueDescending();
+
+        assertEquals(m.size(), s.size());
+        assertEquals(m.isEmpty(), s.isEmpty());
+
+        LocalTestNode node = new LocalTestNode(-1);
+
+        m.put(node.getKey(), node);
+        assertEquals(m.size(), s.size());
+        assertEquals(m.isEmpty(), s.isEmpty());
+        m.remove(node.getKey());
+        assertEquals(m.size(), s.size());
+        assertEquals(m.isEmpty(), s.isEmpty());
+        assertTrue(!s.contains(node));
+
+        for (int k = 0; k < m.size(); k++) {
+            assertTrue(s.contains(new LocalTestNode(k)));
+        }
+
+        m.put(node.getKey(), node);
+        assertTrue(s.contains(node));
+        m.remove(node.getKey());
+        assertTrue(!s.contains(node));
+
+        int count = 0;
+
+        for (Iterator iter = s.iterator(); iter.hasNext(); ) {
+            iter.next();
+
+            ++count;
+        }
+
+        assertEquals(s.size(), count);
+
+        LocalTestNode node4 = new LocalTestNode(-4);
+
+        m.put(node4.getKey(), node4);
+
+        Iterator iter = s.iterator();
+
+        m.put(node.getKey(), node);
+
+        try {
+            iter.next();
+            fail("next() should have thrown an exception after a put");
+        } catch (ConcurrentModificationException ignored) {}
+
+        iter = s.iterator();
+
+        m.remove(node.getKey());
+
+        try {
+            iter.next();
+            fail("next() should have thrown an exception after a Map remove");
+        } catch (ConcurrentModificationException ignored) {}
+
+        m.put(node.getKey(), node);
+
+        iter = s.iterator();
+
+        s.remove(node);
+
+        try {
+            iter.next();
+            fail("next() should have thrown an exception after a Set remove");
+        } catch (ConcurrentModificationException ignored) {}
+
+        iter  = s.iterator();
+        count = 0;
+
+        boolean terminated = false;
+
+        try {
+            while (true) {
+                iter.next();
+
+                ++count;
+            }
+        } catch (NoSuchElementException ignored) {
+            terminated = true;
+        }
+
+        assertTrue(terminated);
+        assertEquals(m.size(), count);
+
+        iter = s.iterator();
+
+        try {
+            iter.remove();
+            fail("Should have thrown exception");
+        } catch (IllegalStateException ignored) {}
+
+        Iterator iter2 = s.iterator();
+
+        try {
+            iter2.remove();
+            fail("Should have thrown exception");
+        } catch (IllegalStateException ignored) {}
+
+        m.put(node.getKey(), node);
+
+        iter = s.iterator();
+
+        iter.next();
+
+        LocalTestNode node2 = new LocalTestNode(-2);
+
+        m.put(node2.getKey(), node2);
+
+        try {
+            iter.remove();
+            fail("should have thrown exception");
+        } catch (ConcurrentModificationException ignored) {}
+
+        LocalTestNode node3 = new LocalTestNode(-3);
+
+        m.put(node3.getKey(), node3);
+
+        iter2 = s.iterator();
+
+        while (iter2.hasNext()) {
+            iter2.next();
+        }
+
+        int removalCount = 0;
+
+        for (iter = s.iterator(); iter.hasNext(); ) {
+            if (iter.next().equals(node3)) {
+                try {
+                    iter.remove();
+
+                    ++removalCount;
+
+                    iter.remove();
+                    fail("2nd remove should have failed");
+                } catch (IllegalStateException ignored) {
+                    assertEquals(1, removalCount);
+                }
+            }
+        }
+
+        assertEquals(1, removalCount);
+        assertTrue(!s.contains(node3));
+
+        Object[] a1 = s.toArray();
+
+        assertEquals(s.size(), a1.length);
+
+        try {
+            s.toArray(new String[0]);
+
+            if (s.size() != 0) {
+                fail("should have caught exception creating an invalid array");
+            }
+        } catch (ArrayStoreException ignored) {}
+
+        m.remove(node.getKey());
+        m.remove(node2.getKey());
+        m.remove(node3.getKey());
+
+        s.toArray(new LocalTestNode[0]);
+        s.toArray(new LocalTestNode[s.size()]);
+
+        try {
+            s.add(node.getKey());
+            fail("should have thrown an exception");
+        } catch (UnsupportedOperationException ignored) {}
+
+        assertTrue(!s.equals(null));
+        assertEquals(s, s);
+
+        Set hs = new HashSet(s);
+
+        assertTrue(!s.equals(hs));
+        assertTrue(!hs.equals(s));
+    }
+
     private void testEntrySet(Map m) {
 
         Set s = m.entrySet();
@@ -3751,9 +4353,17 @@ public class TransactionalBidiTreeMapTest extends TestCase {
     }
 
     private void testEntrySetByValue(TransactionalBidiTreeMap m) {
+        testEntrySetByValue(m, false);
+    }
 
-        Set s = m.entrySetByValue();
+    private void testEntrySetByValueDescending(TransactionalBidiTreeMap m) {
+        testEntrySetByValue(m, true);
+    }
 
+    private void testEntrySetByValue(TransactionalBidiTreeMap m, boolean descending) {
+        
+        Set s = descending ? m.entrySetByValueDescending() : m.entrySetByValue();
+        
         assertEquals(m.size(), s.size());
         assertEquals(m.isEmpty(), s.isEmpty());
 
@@ -3899,8 +4509,12 @@ public class TransactionalBidiTreeMapTest extends TestCase {
             for (int k = 1; k < a1.length; k++) {
                 Map.Entry second = (Map.Entry) a1[k];
 
-                assertTrue(((Comparable) first.getKey())
-                    .compareTo((Comparable) second.getKey()) < 0);
+                if (descending)
+                    assertTrue(((Comparable) first.getValue())
+                        .compareTo((Comparable) second.getValue()) > 0);
+                else
+                    assertTrue(((Comparable) first.getValue())
+                        .compareTo((Comparable) second.getValue()) < 0);
 
                 first = second;
             }
@@ -3911,8 +4525,12 @@ public class TransactionalBidiTreeMapTest extends TestCase {
             for (; iter.hasNext(); ) {
                 Map.Entry second = (Map.Entry) iter.next();
 
-                assertTrue(((Comparable) first.getKey())
-                    .compareTo((Comparable) second.getKey()) < 0);
+                if (descending)
+                    assertTrue(((Comparable) first.getValue())
+                        .compareTo((Comparable) second.getValue()) > 0);
+                else
+                    assertTrue(((Comparable) first.getValue())
+                        .compareTo((Comparable) second.getValue()) < 0);
 
                 first = second;
             }
@@ -3937,7 +4555,10 @@ public class TransactionalBidiTreeMapTest extends TestCase {
                 Comparable second =
                     (Comparable) ((Map.Entry) array3[k]).getValue();
 
-                assertTrue(first.compareTo(second) < 0);
+                if (descending)
+                    assertTrue(first.compareTo(second) > 0);
+                else
+                    assertTrue(first.compareTo(second) < 0);
 
                 first = second;
             }

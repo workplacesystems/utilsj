@@ -90,6 +90,16 @@ public class SynchronizedSortedBidiMap<K,V> extends SynchronizedSortedMap<K,V> i
         });
     }
     
+    public FilterableSet<Map.Entry<K,V>> entrySetByValueDescending() {
+        return SyncUtils.synchronizeRead(lock, new Callback<FilterableSet<Map.Entry<K,V>>>() {
+            @Override
+            protected void doAction() {
+                FilterableSet<Map.Entry<K,V>> _set = getSortedBidiMap().entrySetByValueDescending();
+                _return(new SynchronizedFilterableSet<Map.Entry<K,V>>(_set, lock));
+            }
+        });
+    }
+    
     public K firstKeyByValue() {
         return SyncUtils.synchronizeRead(lock, new Callback<K>() {
             @Override
@@ -224,6 +234,16 @@ public class SynchronizedSortedBidiMap<K,V> extends SynchronizedSortedMap<K,V> i
             @Override
             protected void doAction() {
                 FilterableCollection<V> _col = getSortedBidiMap().valuesByValue();
+                _return(new SynchronizedFilterableCollection<V>(_col, lock));
+            }
+        });
+    }
+
+    public FilterableCollection<V> valuesByValueDescending() {
+        return SyncUtils.synchronizeRead(lock, new Callback<FilterableCollection<V>>() {
+            @Override
+            protected void doAction() {
+                FilterableCollection<V> _col = getSortedBidiMap().valuesByValueDescending();
                 _return(new SynchronizedFilterableCollection<V>(_col, lock));
             }
         });

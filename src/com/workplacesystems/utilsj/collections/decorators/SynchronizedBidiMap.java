@@ -105,11 +105,31 @@ public class SynchronizedBidiMap<K,V> extends SynchronizedMap<K,V> implements Bi
         });
     }
     
+    public FilterableCollection<V> valuesByValueDescending() {
+        return SyncUtils.synchronizeRead(lock, new Callback<FilterableCollection<V>>() {
+            @Override
+            protected void doAction() {
+                FilterableCollection<V> _col = getBidiMap().valuesByValueDescending();
+                _return(new SynchronizedFilterableCollection<V>(_col, lock));
+            }
+        });
+    }
+    
     public FilterableSet<Map.Entry<K,V>> entrySetByValue() {
         return SyncUtils.synchronizeRead(lock, new Callback<FilterableSet<Map.Entry<K,V>>>() {
             @Override
             protected void doAction() {
                 FilterableSet<Map.Entry<K,V>> _set = getBidiMap().entrySetByValue();
+                _return(new SynchronizedFilterableSet<Map.Entry<K,V>>(_set, lock));
+            }
+        });
+    }
+    
+    public FilterableSet<Map.Entry<K,V>> entrySetByValueDescending() {
+        return SyncUtils.synchronizeRead(lock, new Callback<FilterableSet<Map.Entry<K,V>>>() {
+            @Override
+            protected void doAction() {
+                FilterableSet<Map.Entry<K,V>> _set = getBidiMap().entrySetByValueDescending();
                 _return(new SynchronizedFilterableSet<Map.Entry<K,V>>(_set, lock));
             }
         });
