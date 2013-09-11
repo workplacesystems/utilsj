@@ -46,16 +46,6 @@ public final class FilterFactory
         }
     };
 
-    private static final Filter<?> DISTINCT = new Filter<Object>()
-    { 
-        Set seen = new HashSet();
-
-        public boolean isValid(Object o) 
-        { 
-            return seen.add(o);
-        }
-    };
-
     public static <T> Filter<T> getAcceptAll()
     {
         return (Filter<T>)ACCEPT_ALL;
@@ -81,10 +71,20 @@ public final class FilterFactory
         return (Filter<T>)REJECT_NULL;
     }
 
-    /** Filter which accepts distinct objects during its lifetime.  Any repeats will be rejected */
-    public static <T> Filter<T> getDistinct()
+    /**
+     * Filter which accepts distinct objects during its lifetime. Any repeats
+     * will be rejected
+     */
+    public static <T> Filter<T> getDistinct() 
     {
-        return (Filter<T>)DISTINCT;
+        return new Filter<T>() 
+        {
+            Set seen = new HashSet();
+
+            public boolean isValid(Object o) {
+                return seen.add(o);
+            }
+        };
     }
 
     // enforce non-instantiability
