@@ -71,22 +71,6 @@ public final class FilterFactory
         return (Filter<T>)REJECT_NULL;
     }
 
-    /**
-     * Filter which accepts distinct objects during its lifetime. Any repeats
-     * will be rejected
-     */
-    public static <T> Filter<T> getDistinct() 
-    {
-        return new Filter<T>() 
-        {
-            Set seen = new HashSet();
-
-            public boolean isValid(Object o) {
-                return seen.add(o);
-            }
-        };
-    }
-
     // enforce non-instantiability
     private FilterFactory() {}
 }
