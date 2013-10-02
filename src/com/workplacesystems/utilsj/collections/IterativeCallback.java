@@ -28,23 +28,58 @@ import com.workplacesystems.utilsj.collections.decorators.SynchronizedFilterable
  */
 abstract public class IterativeCallback<T,R>
 {    
+    private IterativeState<T,R> state;
+
     /** Creates a new instance of IterativeCallback */
-    public IterativeCallback() {}
+    public IterativeCallback()
+    {
+        initState();
+    }
  
     /** Creates a new instance of IterativeCallback, accepting an object that may be amended throughout the iteration process */
     public IterativeCallback(R amended_object) 
     {
-        this.amended_object = amended_object;
+        this();
+        state.amended_object = amended_object;
     }
- 
+
+    private void initState()
+    {
+        // Only create a new state if one doesn't exist already.
+        // newState and setState can be used if more state control is required.
+        if (state == null)
+            newState();
+    }
+
+    /**
+     * Creates a new state for this IterativeCallback.
+     * 
+     * @return previous state
+     */
+    public IterativeState<T,R> newState()
+    {
+        return setState(new IterativeState<T,R>());
+    }
+
+    /**
+     * Sets the supplied state for this IterativeCallback.
+     * 
+     * @return previous state
+     */
+    public IterativeState<T,R> setState(IterativeState<T,R> new_state)
+    {
+        IterativeState<T,R> old_state = this.state;
+        this.state = new_state;
+        return old_state;
+    }
+
     /** public wrapper for the iteration */
     public R iterate(final FilterableCollection<? extends T> c)
     {
+        initState();
+
         checkUsed();
 
-        return_object = null;
-        do_break = false;
-        
         // If collection is decorated with a syncronized wrapper then synchronize the iteration
         if (c instanceof SynchronizedFilterableCollection)
         {
@@ -63,39 +98,49 @@ abstract public class IterativeCallback<T,R>
      * Find out if callback has been used.
      * @return true if used, false if not
      */
-    protected boolean hasBeenUsed() { return iterative_callback_used; }
-    
+    protected boolean hasBeenUsed() { return state.iterative_callback_used; }
+
     /** check callback used only once */
     protected final void checkUsed()
     {
-        if (iterative_callback_used)
+        if (state.iterative_callback_used)
             throw new UtilsjException("IterativeCallback can not be used more than once.");
-        iterative_callback_used = true;
+        state.iterative_callback_used = true;
     }
-    
-    // Save iterator so that remove can be called
-    private Iterator<? extends T> i;
-    
+
     /** do the actual iteration */
     private R doIteration(Iterator<? extends T> it)
     {
         // save the iterator into member variable
-        i = it;
-        int iterations = 0;
+        state.i = it;
+        state.iterations = 0;
         
+        if (state.do_break == true)
+            return state.return_object;
+
         // do the iteration calling nextobject on each
-        while (i.hasNext())
+        while (state.i.hasNext())
         {
-            T o = i.next();
-            if (iterations == 0)
-                firstObject(o);
+            T o = state.i.next();
+
+            if (delegate != null)
+                delegate.delegate(o);
             else
-                nextObject(o);
-            iterations++;
-            if (do_break == true)
-                return return_object;
+                iterateObject(o);
+
+            if (state.do_break == true)
+                return state.return_object;
         }
-        return amended_object;
+        return state.amended_object;
+    }
+
+    void iterateObject(T o)
+    {
+        if (state.iterations == 0)
+            firstObject(o);
+        else
+            nextObject(o);
+        state.iterations++;
     }
 
     protected void firstObject(T o)
@@ -105,51 +150,57 @@ abstract public class IterativeCallback<T,R>
 
     protected final boolean hasNext()
     {
-        return i.hasNext();
+        return state.i.hasNext();
     }
     
     /** allows remove to be called on the iterator */
     public void remove()
     {
-        i.remove();
+        state.i.remove();
     }
 
     /** called by each iteration step */
     protected abstract void nextObject(T obj);
 
-    private boolean iterative_callback_used = false;
-    private R return_object;
-    private R amended_object = null;
-    private boolean do_break;
-    
     protected void _return(R o)
     {
-        return_object = o;
-        do_break = true;
+        state.return_object = o;
+        state.do_break = true;
     }
     
     protected void _returnNotNull(R o)
     {
         if (o != null)
         {
-            return_object = o;
-            do_break = true;
+            state.return_object = o;
+            state.do_break = true;
         }
     }
     
     protected void _break()
     {
-        do_break = true;
+        state.do_break = true;
     }
     
     protected void setAmendedObject(R o)
     {
-        amended_object = o;
+        state.amended_object = o;
     }
     
     protected R getAmendedObject()
     {
-        return amended_object;
+        return state.amended_object;
     }
-    
+
+    private IterativeDelegate<T> delegate;
+
+    public void addDelegation(IterativeDelegate<T> delegate)
+    {
+        delegate.setIterativeCallback(this);
+
+        if (this.delegate == null)
+            this.delegate = delegate;
+        else
+            this.delegate.setNextDelegation(delegate);
+    }    
 }
