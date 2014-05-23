@@ -1,6 +1,6 @@
 # UtilsJ
 
-UtilsJ is a library of collections, synchronisation and other utility classes that have been created to help with performance and scalability requirements of applications. The library is a dependency of the [http://queuj.sourceforge.net/ QueuJ] job queue library.
+UtilsJ is a library of collections, synchronisation and other utility classes that have been created to help with performance and scalability requirements of applications. The library is a dependency of the [QueuJ](https://github.com/workplacesystems/queuj/) job queue library.
 
 ## Features
 
