@@ -16,6 +16,10 @@
 
 package com.workplacesystems.utilsj;
 
+import com.workplacesystems.utilsj.collections.FilterableArrayList;
+import com.workplacesystems.utilsj.collections.FilterableCollection;
+import com.workplacesystems.utilsj.collections.IterativeCallback;
+import com.workplacesystems.utilsj.collections.decorators.SynchronizedFilterableCollection;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.lang.reflect.InvocationTargetException;
@@ -31,6 +35,8 @@ public class UtilsjException extends RuntimeException
     private final static Log log = LogFactory.getLog(UtilsjException.class);
 
     private final static String new_line = System.getProperty("line.separator");
+
+    private final static FilterableCollection<Handler> handlers = SynchronizedFilterableCollection.decorate(new FilterableArrayList<Handler>());
 
     /**
      *
@@ -84,5 +90,25 @@ public class UtilsjException extends RuntimeException
         message += new_line + new_line + sw.toString();
 
         log.fatal(message);
+
+        (new IterativeCallback<Handler, Void>() {
+            @Override
+            protected void nextObject(Handler h)
+            {
+                h.handle(UtilsjException.this);
+            }
+        }).iterate(handlers);
+    }
+
+    public interface Handler {
+        public void handle(UtilsjException ue);
+    }
+
+    public static void addHandler(Handler h) {
+        handlers.add(h);
+    }
+
+    public static void removeHandler(Handler h) {
+        handlers.remove(h);
     }
 }
