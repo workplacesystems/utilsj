@@ -1,12 +1,16 @@
- <project>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
+
   <groupId>com.workplacesystems.utilsj</groupId>
   <artifactId>utilsj</artifactId>
+  <version>1.1.4-SNAPSHOT</version>
   <packaging>jar</packaging>
+
   <name>UtilsJ</name>
-  <version>@@VERSION@@</version>
   <description>Various Java utility classes including transactional collections, collection helpers, synchronisation utilities, thread utilities and build utilities classes.</description>
   <url>http://github.com/workplacesystems/utilsj</url>
+
   <licenses>
     <license>
       <name>The Apache Software License, Version 2.0</name>
@@ -14,10 +18,12 @@
       <distribution>repo</distribution>
     </license>
   </licenses>
+
   <scm>
     <url>http://github.com/workplacesystems/utilsj</url>
     <connection>http://github.com/workplacesystems/utilsj</connection>
   </scm>
+
   <developers>
     <developer>
       <id>daveoxley</id>
@@ -25,6 +31,7 @@
       <email>dave@daveoxley.co.uk</email>
     </developer>
   </developers>
+
   <dependencies>
     <dependency>
       <groupId>org.apache.ant</groupId>
@@ -51,5 +58,53 @@
       <artifactId>commons-pool</artifactId>
       <version>1.5.4</version>
     </dependency>
+
+    <dependency>
+      <groupId>junit</groupId>
+      <artifactId>junit</artifactId>
+      <version>3.8.1</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.easymock</groupId>
+      <artifactId>easymock</artifactId>
+      <version>3.1</version>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
+
+  <build>
+    <plugins>
+        <plugin>
+          <artifactId>maven-antrun-plugin</artifactId>
+          <version>1.7</version>
+          <executions>
+            <execution>
+              <phase>generate-sources</phase>
+              <configuration>
+                <target>
+                  <ant dir="." antfile="build.xml"/>
+                </target>
+              </configuration>
+              <goals>
+                <goal>run</goal>
+              </goals>
+            </execution>
+          </executions>
+        </plugin>
+    </plugins>
+  </build>
+
+  <distributionManagement>
+    <repository>
+      <id>sonatype-nexus-staging</id>
+      <name>Staging Releases</name>
+      <url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
+    </repository>
+    <snapshotRepository>
+      <id>sonatype-nexus-snapshots</id>
+      <name>Snapshots</name>
+      <url>https://oss.sonatype.org/content/repositories/snapshots/</url>
+    </snapshotRepository>
+  </distributionManagement>
 </project>
