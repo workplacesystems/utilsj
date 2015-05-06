@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.workplacesystems.utilsj.collections.Filter;
+import java.util.Collection;
 
 /**
  * Logical 'and' of a sequence of filters.  Short-circuit boolean evaluation is used as for Java '&amp;&amp;' operation.
@@ -40,9 +41,14 @@ public final class AndFilter<E> implements Filter<E> {
             conditions.add(filter);
     }
     
-    public AndFilter(final List<Filter<? super E>> filters) 
+    public AndFilter(final Collection<Filter<? super E>> filters) 
     {
         conditions.addAll(filters);
+    }
+
+    public void addFilter(Filter<? super E> filter)
+    {
+        conditions.add(filter);
     }
 
     public boolean isValid(E obj) 
